@@ -8,4 +8,4 @@ dotnet run --project tests/CombatLockout.Tests/CombatLockout.Tests.csproj -c Rel
 
 The executable links production combat, cleanup, persistence and optional-framework sources. It uses game API doubles and real Harmony patches. These tests verify local logic, not multiplayer replication or in-game UI appearance.
 
-See [validation](../../docs/VALIDATION.md) for current results, the container-link integration harness and the manual checklist.
+Related harnesses cover [container-link integration](../ContainerLink.Integration) and [commands and menus](../TerminalMenu.Tests).

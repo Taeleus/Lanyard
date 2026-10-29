@@ -22,7 +22,7 @@ Run `./Deploy-LocalDev.ps1` to build the Legacy target and install it in `%APPDA
 
 Enable Lanyard manually, disable other inventory-link variants, and restart the game after replacing a loaded build.
 
-See [validation](docs/VALIDATION.md) for reproducible checks and the remaining in-game checklist.
+Offline development harnesses are available in `tests/CombatLockout.Tests`, `tests/ContainerLink.Integration` and `tests/TerminalMenu.Tests`.
 
 ## Prepare publication
 
