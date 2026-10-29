@@ -36,6 +36,6 @@
     <Directory>ClientPlugin</Directory>
   </SourceDirectories>
   <!-- Reviewed source revision; keep this pin fixed for this release. -->
-  <Commit>1a7cea00ef7fd97da46bbad8b511b936e585543f</Commit>
+  <Commit>04a146f4ba0b4c39e11cc48269023ed1aeeab3bc</Commit>
   <Runtimes>CLR</Runtimes>
 </PluginData>
