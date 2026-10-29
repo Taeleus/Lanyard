@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../ClientPlugin/LanyardDiagnostics.cs" Link="LanyardDiagnostics.cs" />
+    <Compile Include="../../ClientPlugin/ConnectorDamageWindow.cs" Link="ConnectorDamageWindow.cs" />
+    <Compile Include="../../ClientPlugin/GridOwnershipCache.cs" Link="GridOwnershipCache.cs" />
+    <Compile Include="../../ClientPlugin/EnemyOwnership.cs" Link="EnemyOwnership.cs" />
+    <Compile Include="../../ClientPlugin/BoundsAccess.cs" Link="BoundsAccess.cs" />
+    <Compile Include="../../ClientPlugin/CombatCooldown.cs" Link="CombatCooldown.cs" />
+    <Compile Include="../../ClientPlugin/CombatLockout.cs" Link="CombatLockout.cs" />
+    <Compile Include="../../ClientPlugin/OwnGrindingPatches.cs" Link="OwnGrindingPatches.cs" />
+    <Compile Include="../../ClientPlugin/CombatCooldownStore.cs" Link="CombatCooldownStore.cs" />
+    <Compile Include="../../ClientPlugin/WeaponCoreMonitor.cs" Link="WeaponCoreMonitor.cs" />
+    <Compile Include="../../ClientPlugin/NonDamageEffectMonitor.cs" Link="NonDamageEffectMonitor.cs" />
+    <PackageReference Include="Lib.Harmony" Version="2.4.2" />
+  </ItemGroup>
+</Project>

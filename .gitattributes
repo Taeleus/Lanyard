@@ -1,0 +1,6 @@
+# Keep source and documentation consistent across platforms.
+* text=auto eol=lf
+
+# Windows-native project and deployment files.
+*.sln text eol=crlf
+*.ps1 text eol=crlf

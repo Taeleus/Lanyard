@@ -1,0 +1,44 @@
+# Build output, packages and local validation artifacts.
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+/artifacts/
+TestResults/
+coverage/
+packages/
+*.dll
+*.exe
+*.pdb
+*.nupkg
+*.snupkg
+*.binlog
+*.log
+
+# Local IDE, agent and machine-specific settings.
+/.agents/
+.vs/
+.idea/
+_ReSharper*/
+*.user
+*.suo
+*.userprefs
+*.DotSettings.user
+*.rsuser
+
+# Credentials and local environment files.
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.pem
+*.key
+*.snk
+
+# Tool caches and operating-system files.
+__pycache__/
+*.py[cod]
+.DS_Store
+Thumbs.db
+*~

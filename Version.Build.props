@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <!-- Read the shared version from source so local and Pulsar builds agree. -->
+    <VersionSource>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)ClientPlugin/BuildVersion.cs'))</VersionSource>
+    <Version>$([System.Text.RegularExpressions.Regex]::Match('$(VersionSource)', 'const string Version = &quot;([^&quot;]+)&quot;').Groups[1].Value)</Version>
+    <!-- These three attributes are supplied by BuildVersion.cs for both compilers. -->
+    <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+    <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+    <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+  </PropertyGroup>
+</Project>
