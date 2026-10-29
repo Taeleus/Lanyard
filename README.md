@@ -48,7 +48,7 @@ Vanilla weapons are supported, with optional WeaponCore and Vanilla+ integration
 
 ## Local development and testing
 
-Publication is pending while the in-game checklist is completed. See [development and release preparation](RELEASING.md) for build and local installation instructions, including `Deploy-LocalDev.ps1`. Restart the game after replacing a loaded build.
+In-game testing has been confirmed by the maintainer. PluginHub publication is awaiting review. See [development and release preparation](RELEASING.md) for build and local installation instructions, including `Deploy-LocalDev.ps1`. Restart the game after replacing a loaded build.
 
 - [Validation and in-game checklist](docs/VALIDATION.md)
 - [Version history](CHANGELOG.md)

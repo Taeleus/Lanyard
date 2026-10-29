@@ -27,19 +27,23 @@ dotnet run --project tests/TerminalMenu.Tests/TerminalMenu.Tests.csproj -c Relea
 dotnet build ClientPlugin/ClientPlugin.csproj -c Release -p:RunPostBuildEvent=Never
 ```
 
-## In-game checklist
+## In-game testing
 
-These checks have not been recorded as complete. Keep the PluginHub submission in draft until their results are recorded.
+- [x] The maintainer confirmed in-game testing on 2026-10-29 and requested that the PluginHub PR be marked ready for review.
+
+### Regression scenarios
+
+The scenarios below remain a reference for repeat testing; individual scenario results were not itemized in the confirmation.
 
 Restart with Lanyard enabled and other inventory-link plugins disabled. Use a survival world, owned cargo with free space and a quiet grid.
 
-- [ ] Open **K → Lanyard** and `/ly menu`. Check status, keyboard focus, linking, unlinking, bounds and Close; confirm `/lanyard` aliases work.
-- [ ] Weld from the build planner, grind a block down completely and drill ore. Check that materials move through the selected port as expected and stop when unlinked or using another tool.
-- [ ] Check outside-bounds pausing, the 100 m disconnect, access revocation, friendly deconstruction and the two-minute combat restriction.
-- [ ] Attempt placement with its first component missing, then place again after it arrives. Repeat the tool and link checks in live multiplayer.
+- Open **K → Lanyard** and `/ly menu`. Check status, keyboard focus, linking, unlinking, bounds and Close; confirm `/lanyard` aliases work.
+- Weld from the build planner, grind a block down completely and drill ore. Check that materials move through the selected port as expected and stop when unlinked or using another tool.
+- Check outside-bounds pausing, the 100 m disconnect, access revocation, friendly deconstruction and the two-minute combat restriction.
+- Attempt placement with its first component missing, then place again after it arrives. Repeat the tool and link checks in live multiplayer.
 
 ## Limits
 
-Fresh in-game plugin initialization, rendered GUI layout and live multiplayer or dedicated-server replication remain manual verification. Offline tests and successful compilation do not certify those paths.
+The in-game result is the maintainer's confirmation; detailed scenario results and dedicated-server coverage were not recorded here. Offline tests and successful compilation do not independently certify those paths.
 
 Combat restrictions depend on information received by the client and are not server-enforced anti-cheat. Full cargo, character capacity and delayed inventory replication can affect transfers. Placement requests use a bounded retry window; an unusually late response can overlap a later request.
