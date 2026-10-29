@@ -25,7 +25,8 @@ public static class LinkController
     private static bool combatPaused;
     internal static bool IsCombatPaused => combatPaused;
     public static string StatusText => GetTargetedBlock.selectedBlock == null
-        ? CombatLockout.IsBlocked ? "Not linked. Lanyard unavailable." : "Not linked. Aim at an inventory port with a tool to connect."
+        ? LinkRecovery.IsPending ? "Link saved. Waiting for its matching player and inventory port."
+            : CombatLockout.IsBlocked ? "Not linked. Lanyard unavailable." : "Not linked. Aim at an inventory port with a tool to connect."
         : "Linked to " + GetTargetedBlock.selectedBlock.CustomName +
           (combatPaused || CombatLockout.IsBlocked ? ". Paused: waiting for a quiet working area."
               : outOfRange ? ". Paused: outside the working area." : ". Inside the working area.");
@@ -80,10 +81,36 @@ public static class LinkController
         enemyCheckTicks = 0;
         outOfRange = false;
         combatPaused = CombatLockout.IsBlocked;
+        LinkRecovery.Remember();
+        NotifyStateChanged();
+    }
+
+    public static void BeginSession() => LinkRecovery.BeginSession();
+    public static void SuspendForWorldChange() => LinkRecovery.SuspendForWorldChange();
+
+    internal static void Restored()
+    {
+        pendingPlacement.Clear();
+        ClearGrinder();
+        BoundsPreview.LinkConnected();
+        linkedCharacter = MySession.Static.LocalCharacter;
+        ticks = 0;
+        enemyCheckTicks = 29;
+        outOfRange = false;
+        combatPaused = true;
         NotifyStateChanged();
     }
 
     public static void Disconnect(string message = null)
+    {
+        var pending = LinkRecovery.IsPending;
+        LinkRecovery.Forget();
+        ClearLiveLink();
+        if (message != null) LanyardDiagnostics.Show(message);
+        if (pending) NotifyStateChanged();
+    }
+
+    internal static void ClearLiveLink()
     {
         pendingPlacement.Clear();
         ClearGrinder();
@@ -96,8 +123,6 @@ public static class LinkController
         combatPaused = false;
         ticks = 0;
         enemyCheckTicks = 0;
-        if (message != null)
-            LanyardDiagnostics.Show(message);
         if (changed) NotifyStateChanged();
     }
 
@@ -111,6 +136,7 @@ public static class LinkController
             ClearGrinder();
             ticks = 0;
         }
+        LinkRecovery.RememberPause();
         NotifyStateChanged();
         MyAPIGateway.Utilities?.ShowNotification(paused
             ? "Lanyard paused. Link retained."
@@ -162,6 +188,11 @@ public static class LinkController
 
     private static bool ValidateLink()
     {
+        if (!LinkRecovery.HasCurrentContext)
+        {
+            SuspendForWorldChange();
+            return false;
+        }
         if (MySession.Static == null || MyAPIGateway.Session == null)
         {
             Disconnect();
@@ -223,9 +254,14 @@ public static class LinkController
 
     public static void Update()
     {
-        if (MySession.Static == null || MyAPIGateway.Session == null)
+        try
         {
-            Disconnect();
+            if (!LinkRecovery.Update()) return;
+        }
+        catch (Exception exception)
+        {
+            MyLog.Default?.WriteLineAndConsole("Lanyard recovery waiting: " + exception.Message);
+            SuspendForWorldChange();
             return;
         }
         // Hard failures still end a retained link while combat has it paused.
@@ -299,9 +335,9 @@ public static class LinkController
             pendingPlacement.Remove(id);
             return;
         }
-        if (GetTargetedBlock.selectedBlock == null) return;
         try
         {
+            if (!LinkRecovery.Update() || GetTargetedBlock.selectedBlock == null) return;
             CombatLockout.FollowGrid(GetTargetedBlock.selectedBlock.CubeGrid as MyCubeGrid);
             CombatLockout.Update();
             if (!CanTransfer() || !CheckEnemies()) return;

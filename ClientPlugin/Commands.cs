@@ -9,20 +9,17 @@ public class Commands : MySessionComponentBase
 {
     public override void BeforeStart()
     {
-        LinkController.Disconnect();
-        BoundsPreview.Clear();
-        CombatLockout.Start();
+        LinkController.BeginSession();
         MyAPIUtilities.Static.MessageEntered += Command;
     }
 
     protected override void UnloadData()
     {
         MyAPIUtilities.Static.MessageEntered -= Command;
+        LinkController.SuspendForWorldChange();
         TerminalMenu.Clear();
         LanyardScreen.Close();
-        LinkController.Disconnect();
         BoundsPreview.Clear();
-        CombatLockout.Clear();
         base.UnloadData();
     }
 

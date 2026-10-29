@@ -1,5 +1,6 @@
 using VRage.Plugins;
 using Lanyard;
+using Sandbox.Game.World;
 
 namespace ClientPlugin;
 
@@ -15,16 +16,17 @@ public class Plugin : IPlugin
         Reflections.Initialize();
         TerminalMenu.Initialize();
         PlacementSupply.Initialize();
+        MySession.OnUnloading += LinkController.SuspendForWorldChange;
     }
 
     public void Dispose()
     {
+        MySession.OnUnloading -= LinkController.SuspendForWorldChange;
+        LinkController.SuspendForWorldChange();
         PlacementSupply.Dispose();
         TerminalMenu.Dispose();
         LanyardScreen.Close();
-        LinkController.Disconnect();
         BoundsPreview.Clear();
-        CombatLockout.Clear();
         OwnGrindingPatches.Dispose();
     }
 

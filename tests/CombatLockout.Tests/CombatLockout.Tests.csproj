@@ -15,6 +15,7 @@
     <Compile Include="../../ClientPlugin/CombatLockout.cs" Link="CombatLockout.cs" />
     <Compile Include="../../ClientPlugin/OwnGrindingPatches.cs" Link="OwnGrindingPatches.cs" />
     <Compile Include="../../ClientPlugin/CombatCooldownStore.cs" Link="CombatCooldownStore.cs" />
+    <Compile Include="../../ClientPlugin/CombatResumeState.cs" Link="CombatResumeState.cs" />
     <Compile Include="../../ClientPlugin/WeaponCoreMonitor.cs" Link="WeaponCoreMonitor.cs" />
     <Compile Include="../../ClientPlugin/NonDamageEffectMonitor.cs" Link="NonDamageEffectMonitor.cs" />
     <PackageReference Include="Lib.Harmony" Version="2.4.2" />

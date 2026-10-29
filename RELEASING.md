@@ -1,6 +1,6 @@
 # Development and release preparation
 
-The development version is **Lanyard v0.2.0** on `dev`. Building or installing locally does not publish a release or register the plugin with PluginHub.
+The development version is **Lanyard v0.2.1** on `dev`. Building or installing locally does not publish a release or register the plugin with PluginHub.
 
 ## Build
 

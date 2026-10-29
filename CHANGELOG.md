@@ -1,5 +1,12 @@
 # Lanyard changelog
 
+## v0.2.1 — 2026-10-29
+
+- Remember the selected inventory and exact access port through reconnects and server transfers that preserve container identity.
+- Restore the connection after replication and fresh access, range and safety checks.
+- Preserve cooldown expiry through reconnects, including time spent offline.
+- Keep manual unlinking and confirmed broken links from being restored later.
+
 ## v0.2.0 — 2026-10-29
 
 - Keep the selected inventory linked while combat or enemy overlap pauses transfers.

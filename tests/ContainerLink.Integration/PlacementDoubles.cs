@@ -12,6 +12,7 @@ namespace Sandbox.Definitions
     {
         public sealed class Component { public MyComponentDefinition Definition; public int Count; }
         public Component[] Components;
+        public MyDefinitionId Id;
     }
 }
 

@@ -47,12 +47,13 @@ internal static partial class Program
         public readonly MyCubeGrid Grid = new MyCubeGrid();
         public readonly MyCubeBlock Selected = new MyCubeBlock();
         public readonly MyCubeBlock Other = new MyCubeBlock { CustomName = "Other container" };
-        public readonly MyEntity PortOwner = new MyEntity();
+        public readonly MyEntity PortOwner;
         public readonly MyAngleGrinder Grinder = new MyAngleGrinder { IsShooting = true };
         public MyInventory Destination => Selected.Inventories[0];
 
-        public World()
+        public World(bool persistentPort = false)
         {
+            PortOwner = persistentPort ? Selected : new MyEntity();
             LinkController.Disconnect();
             grinderNow = Stopwatch.Frequency * 10;
             typeof(LinkController).GetField("grinderClock", BindingFlags.NonPublic | BindingFlags.Static)
@@ -396,6 +397,7 @@ internal static partial class Program
         GrinderGraceTests();
         CombatPauseTests();
         PlacementSupplyTests();
+        ConnectionPersistenceTests();
         Console.WriteLine($"PASS: {assertions} container-link integration assertions (linked production LinkController; offline game API doubles).");
     }
 }

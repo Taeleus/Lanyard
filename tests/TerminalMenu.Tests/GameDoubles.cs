@@ -59,6 +59,8 @@ namespace Lanyard
         public static string CurrentStatus = "No active link.";
         public static string StatusText { get { StatusReads++; return CurrentStatus; } }
         public static void Disconnect(string message = null) => Calls.Actions.Add("disconnect");
+        public static void BeginSession() { }
+        public static void SuspendForWorldChange() { }
     }
 
     internal static class BoundsPreview

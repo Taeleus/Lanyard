@@ -2,16 +2,18 @@
 
 Lanyard connects your character's tools to one selected inventory port, helping you build, grind and drill without carrying every material yourself.
 
-**Lanyard v0.2.0** is a Space Engineers 1 client plugin for **Pulsar Legacy**. No server mod is required.
+**Lanyard v0.2.1** is a Space Engineers 1 client plugin for **Pulsar Legacy**. No server mod is required.
 
 ## Start here
 
-1. Enable **Lanyard v0.2.0** in Pulsar and restart the game.
+1. Enable **Lanyard v0.2.1** in Pulsar and restart the game.
 2. Equip a welder, grinder or drill and aim at the inventory access port you want to use.
 3. Type `/ly` to connect.
 4. Open **K → Lanyard** for status and connection controls, or type `/ly menu` to open the standalone panel. Use `/ly bounds` to see your working area.
 
 The link stays attached to the selected block. Losing that block or access to it disconnects the link.
+
+Lanyard remembers your connection when you reconnect or move between servers. It waits for the same container and access port to become available, checks your access and range again, then restores the link. Your cooldown keeps its original expiry while you are offline. Automatic recovery requires the transfer to preserve your player identity and the container's identity.
 
 ## What it does
 

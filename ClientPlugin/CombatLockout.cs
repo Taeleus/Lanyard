@@ -24,6 +24,8 @@ internal static class CombatLockout
     private static readonly Dictionary<MyCubeGrid, GridActivity> grids = new Dictionary<MyCubeGrid, GridActivity>();
     private static readonly List<IMyCubeGrid> group = new List<IMyCubeGrid>();
     private static readonly HashSet<MyCubeGrid> relevant = new HashSet<MyCubeGrid>();
+    private static readonly HashSet<long> resumedGridIds = new HashSet<long>();
+    private static readonly HashSet<long> resumedWeaponIds = new HashSet<long>();
     private static MyCubeGrid anchor;
     private static WeaponActivity handWeapon;
     private static bool started;
@@ -89,9 +91,51 @@ internal static class CombatLockout
         return block == null ? "armor or unresolved fat block" : "block " + block.BlockDefinition?.Id + " #" + block.EntityId;
     }
 
-    public static void Start()
+    public static CombatResumeState CaptureResumeState()
+    {
+        var gridIds = new HashSet<long>();
+        var weaponIds = new HashSet<long>();
+        foreach (var entry in grids)
+            if (relevant.Contains(entry.Key) || (anchor == null && entry.Value.WasResumed))
+            {
+                AddResumeId(gridIds, entry.Key.EntityId);
+                entry.Value.CaptureWeaponIds(weaponIds);
+            }
+        if (coreHandWeapon?.HasResumeHistory == true && coreHandEntity != null)
+            AddResumeId(weaponIds, coreHandEntity.EntityId);
+        // Keep validated hints that have not replicated yet through another
+        // quick handoff. They authorize no transfer and remain bounded.
+        foreach (var id in resumedGridIds) AddResumeId(gridIds, id);
+        foreach (var id in resumedWeaponIds) AddResumeId(weaponIds, id);
+        var state = new CombatResumeState
+        {
+            GridIds = new long[gridIds.Count],
+            WeaponIds = new long[weaponIds.Count]
+        };
+        gridIds.CopyTo(state.GridIds);
+        weaponIds.CopyTo(state.WeaponIds);
+        return state;
+    }
+
+    private static void AddResumeId(HashSet<long> ids, long id)
+    {
+        if (id != 0 && ids.Count < CombatResumeState.MaxIds) ids.Add(id);
+    }
+
+    private static void LoadResumeIds(HashSet<long> destination, long[] ids)
+    {
+        if (ids == null || ids.Length > CombatResumeState.MaxIds) return;
+        foreach (var id in ids) AddResumeId(destination, id);
+    }
+
+    public static void Start(CombatResumeState resume = null)
     {
         Clear();
+        if (resume != null)
+        {
+            LoadResumeIds(resumedGridIds, resume.GridIds);
+            LoadResumeIds(resumedWeaponIds, resume.WeaponIds);
+        }
         started = true;
         failed = false;
         failureReason = null;
@@ -146,6 +190,8 @@ internal static class CombatLockout
         anchor = null;
         group.Clear();
         relevant.Clear();
+        resumedGridIds.Clear();
+        resumedWeaponIds.Clear();
         // Do not clear the timer when unloading: Nexus transfers/reconnects
         // must not provide a way to discard recent combat activity.
         groupUnavailable = false;
@@ -160,7 +206,7 @@ internal static class CombatLockout
         {
             // Seamless reconnects can replace the world/server without the
             // usual session-component lifecycle. Rebind without losing time.
-            Start();
+            Start(CaptureResumeState());
             return;
         }
         if (failed) return;
@@ -189,7 +235,8 @@ internal static class CombatLockout
             {
                 coreHandWeapon?.Dispose();
                 coreHandEntity = handEntity;
-                coreHandWeapon = handEntity == null ? null : weaponCore.Watch(handEntity, null, reason => ObserveActivity(reason + "; personal weapon"));
+                coreHandWeapon = handEntity == null ? null : weaponCore.Watch(handEntity, null,
+                    reason => ObserveActivity(reason + "; personal weapon"), resumedWeaponIds.Remove(handEntity.EntityId));
             }
             coreHandWeapon?.Poll();
             foreach (var activity in grids.Values) activity.PollWeapons();
@@ -428,16 +475,21 @@ internal static class CombatLockout
         public string ObservationReason { get; private set; }
         public long Until { get; private set; }
         public long ObservationUntil { get; private set; }
+        public bool WasResumed { get; }
         public readonly HashSet<MySlimBlock> OwnDismantled = new HashSet<MySlimBlock>();
 
         public GridActivity(MyCubeGrid grid)
         {
             this.grid = grid;
+            WasResumed = resumedGridIds.Remove(grid.EntityId);
             // Replication/reconnects and splits do not carry past damage
             // events. Require a full observed quiet interval before trusting
             // any newly observed grid. This remains private until selection.
-            ObservationUntil = Stopwatch.GetTimestamp() + CooldownSeconds * Stopwatch.Frequency;
-            ObservationReason = "New grid observation; " + DescribeGrid(grid);
+            if (!WasResumed)
+            {
+                ObservationUntil = Stopwatch.GetTimestamp() + CooldownSeconds * Stopwatch.Frequency;
+                ObservationReason = "New grid observation; " + DescribeGrid(grid);
+            }
             try
             {
                 grid.OnGridBlockDamaged += Damaged;
@@ -470,6 +522,9 @@ internal static class CombatLockout
         {
             if (deadline <= 0) return;
             if (deadline > Until) { Until = deadline; Reason = reason ?? "Grid activity; " + DescribeGrid(grid); }
+            // A validated construct can replicate before its selected container.
+            // Preserve its new activity even while restoration has no anchor.
+            if (WasResumed && anchor == null) IncludeDeadline(Until, Reason);
             // Polled EWAR is batched; Update refreshes the construct after all
             // grids have recorded their history. Event callbacks stay immediate.
             if (!refreshGroup) return;
@@ -545,7 +600,14 @@ internal static class CombatLockout
         {
             if (weaponCore.IsCandidate(block.BlockDefinition.Id) && !coreWeapons.ContainsKey(block))
                 coreWeapons.Add(block, weaponCore.Watch(block, block.BlockDefinition.Id,
-                    reason => Record(Stopwatch.GetTimestamp() + CooldownSeconds * Stopwatch.Frequency, reason + "; " + DescribeGrid(grid) + "; " + DescribeBlock(block))));
+                    reason => Record(Stopwatch.GetTimestamp() + CooldownSeconds * Stopwatch.Frequency,
+                        reason + "; " + DescribeGrid(grid) + "; " + DescribeBlock(block)), resumedWeaponIds.Remove(block.EntityId)));
+        }
+
+        public void CaptureWeaponIds(HashSet<long> ids)
+        {
+            foreach (var entry in coreWeapons)
+                if (entry.Value.HasResumeHistory) AddResumeId(ids, entry.Key.EntityId);
         }
 
         private void FatRemoved(MyCubeBlock block)

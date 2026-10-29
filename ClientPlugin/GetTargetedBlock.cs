@@ -41,11 +41,16 @@ public static class GetTargetedBlock
         try
         {
             var utils = MyAPIGateway.Utilities;
+            if (!LinkRecovery.Update())
+            {
+                preserveExistingLink = LinkRecovery.IsPending || selectedBlock != null;
+                return;
+            }
             if (selectedBlock != null) CombatLockout.FollowGrid(selectedBlock.CubeGrid as MyCubeGrid);
             CombatLockout.Update();
             if (CombatLockout.IsBlocked || (selectedBlock != null && LinkController.IsCombatPaused))
             {
-                preserveExistingLink = selectedBlock != null;
+                preserveExistingLink = LinkRecovery.IsPending || selectedBlock != null;
                 CombatLockout.ReportBlocked();
                 return;
             }
@@ -83,16 +88,7 @@ public static class GetTargetedBlock
                         LanyardDiagnostics.Show(reason);
                         return;
                     }
-                    selectedBlock = terminalBlock;
-                    selectedObject = usableObject;
-                    // Preserve scenario/visual-script entity names.
-                    if (string.IsNullOrEmpty(terminalBlock.Name))
-                    {
-                        terminalBlock.Name = terminalBlock.EntityId.ToString();
-                        MyEntities.SetEntityName((MyEntity)terminalBlock);
-                    }
-                    MyVisualScriptLogicProvider.SetHighlightLocal(terminalBlock.Name, 2, 3,
-                        Color.ForestGreen, MySession.Static.LocalPlayerId, null);
+                    Select(terminalBlock, usableObject);
                     LinkController.Connected();
                     connected = true;
                     utils.ShowNotification($"Linked to {terminalBlock.CustomName}", 4000, "White");
@@ -112,6 +108,20 @@ public static class GetTargetedBlock
             // Includes exceptions after a successful scan or partial selection.
             if (!connected && !preserveExistingLink) LinkController.Disconnect();
         }
+    }
+
+    internal static void Select(IMyTerminalBlock block, IMyUseObject port)
+    {
+        selectedBlock = block;
+        selectedObject = port;
+        // Preserve scenario/visual-script entity names.
+        if (string.IsNullOrEmpty(block.Name))
+        {
+            block.Name = block.EntityId.ToString();
+            MyEntities.SetEntityName((MyEntity)block);
+        }
+        MyVisualScriptLogicProvider.SetHighlightLocal(block.Name, 2, 3,
+            Color.ForestGreen, MySession.Static.LocalPlayerId, null);
     }
 
     public static IMyUseObject selectedObject;
