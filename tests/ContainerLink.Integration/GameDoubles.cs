@@ -259,13 +259,14 @@ namespace Lanyard
     internal static class CombatLockout
     {
         public static bool IsBlocked;
-        public static int Updates, Reports;
+        public static int Updates, Reports, EnemyOverlapObservations;
         public static MyCubeGrid FollowedGrid;
         public static Action<MyCubeGrid> Following;
         public static Action Updating;
         public static void FollowGrid(MyCubeGrid grid) { FollowedGrid = grid; Following?.Invoke(grid); }
         public static void Update() { Updates++; Updating?.Invoke(); }
         public static void ReportBlocked() { Reports++; }
+        public static void ObserveEnemyOverlap() { EnemyOverlapObservations++; IsBlocked = true; }
     }
 
     internal static class LinkArea
@@ -273,9 +274,17 @@ namespace Lanyard
         public const double BreakDistance = 100;
         public static double Outside;
         public static bool NoEnemies = true;
+        public static bool EnemyScanFails;
         public static int BoundsChecks, EnemyChecks, CacheClears;
         public static double DistanceOutside(MyCubeGrid grid, Vector3D position) { BoundsChecks++; return Outside; }
-        public static bool CheckEnemies(MyCubeGrid grid, out string reason) { EnemyChecks++; reason = "Enemy nearby."; return NoEnemies; }
+        public static bool CheckEnemies(MyCubeGrid grid, out string reason) => CheckEnemies(grid, out reason, out _);
+        public static bool CheckEnemies(MyCubeGrid grid, out string reason, out bool hostileOverlap)
+        {
+            EnemyChecks++;
+            hostileOverlap = !EnemyScanFails && !NoEnemies;
+            reason = EnemyScanFails ? "Enemy scan unavailable." : "Enemy nearby.";
+            return !EnemyScanFails && NoEnemies;
+        }
         public static void ClearCache() { CacheClears++; }
     }
 

@@ -13,7 +13,7 @@ using VRageMath;
 
 namespace Lanyard;
 
-// Observes replicated activity, not nearby enemies. Damage history is collected
+// Observes replicated activity and explicit working-area overlap. History is collected
 // before a target is selected so reconnecting to a recently hit grid cannot
 // discard that history. Only the selected mechanical/logical construct affects the lockout.
 internal static class CombatLockout
@@ -286,6 +286,11 @@ internal static class CombatLockout
     private static void ObserveActivity(string reason)
     {
         if (started) IncludeDeadline(Stopwatch.GetTimestamp() + CooldownSeconds * Stopwatch.Frequency, reason);
+    }
+
+    public static void ObserveEnemyOverlap()
+    {
+        ObserveActivity("Hostile grid overlaps the linked working area");
     }
 
     private static void EmpPulse(Vector3D position, float radius, MyEntity owner, bool friendlyFire)

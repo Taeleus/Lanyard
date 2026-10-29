@@ -5,7 +5,7 @@
   <!-- GitHub repository ID -->
   <RepoId>Taeleus/Lanyard</RepoId>
   <!-- The name of your plugin that will appear in the plugin list -->
-  <FriendlyName>Lanyard v0.1.2</FriendlyName>
+  <FriendlyName>Lanyard v0.2.0</FriendlyName>
   <!-- The author name that you want to appear in the plugin list -->
   <Author>Taeleus</Author>
   <!-- Optional tooltip for the plugin in the plugin list -->
@@ -29,7 +29,9 @@
     /ly bounds - toggle the working-area preview
     /ly bounds off - hide the preview
 
-    Use an owned or faction-shared port, stay inside the linked grid's bounds, and work outside combat.
+    Use an owned or faction-shared port and stay inside the linked grid's bounds.
+
+    Combat or enemy overlap pauses transfers without unlinking your inventory. Transfers resume automatically when the restriction clears.
   </Description>
   <!-- Only source code in the Directory entries listed in SourceDirectories is compiled. Exclude any test projects or similar. -->
   <SourceDirectories>

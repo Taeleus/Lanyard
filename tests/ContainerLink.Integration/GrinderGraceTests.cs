@@ -143,7 +143,7 @@ internal static partial class Program
         MyInventory.AfterTransfer = null;
         world.Character.Inventory.Add(Component, "Computer");
         AdvanceGrinder(0.11);
-        Check(MyInventory.Transfers.Count == 3 && world.Character.Inventory.Items.Count == 1 && GetTargetedBlock.selectedBlock == null,
+        Check(MyInventory.Transfers.Count == 3 && world.Character.Inventory.Items.Count == 1 && GetTargetedBlock.selectedBlock == world.Selected,
             "grinder enemy scan: new overlap blocks the next fast grace batch");
 
         world = new World();
@@ -160,7 +160,7 @@ internal static partial class Program
         selected = world.Selected;
         MyInventory.AfterTransfer = _ => { selected.CubeGrid = new MyCubeGrid(); LinkArea.NoEnemies = false; };
         Tick(1);
-        Check(MyInventory.Transfers.Count == 1 && LinkArea.EnemyChecks == 2 && GetTargetedBlock.selectedBlock == null,
+        Check(MyInventory.Transfers.Count == 1 && LinkArea.EnemyChecks == 2 && GetTargetedBlock.selectedBlock == world.Selected,
             "grinder enemy scan: hostile changed anchor blocks remaining batch requests");
 
         world = new World();

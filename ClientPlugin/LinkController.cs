@@ -22,10 +22,13 @@ public static class LinkController
 {
     public static event Action StateChanged;
     private static bool previouslyBlocked;
-    public static string StatusText => CombatLockout.IsBlocked ? "Lanyard unavailable." : GetTargetedBlock.selectedBlock == null
-        ? "Not linked. Aim at an inventory port with a tool to connect."
+    private static bool combatPaused;
+    internal static bool IsCombatPaused => combatPaused;
+    public static string StatusText => GetTargetedBlock.selectedBlock == null
+        ? CombatLockout.IsBlocked ? "Not linked. Lanyard unavailable." : "Not linked. Aim at an inventory port with a tool to connect."
         : "Linked to " + GetTargetedBlock.selectedBlock.CustomName +
-          (outOfRange ? ". Outside the working area; actions paused." : ". Inside the working area.");
+          (combatPaused || CombatLockout.IsBlocked ? ". Paused: waiting for a quiet working area."
+              : outOfRange ? ". Paused: outside the working area." : ". Inside the working area.");
 
     private static void NotifyStateChanged()
     {
@@ -76,6 +79,7 @@ public static class LinkController
         ticks = 0;
         enemyCheckTicks = 0;
         outOfRange = false;
+        combatPaused = CombatLockout.IsBlocked;
         NotifyStateChanged();
     }
 
@@ -89,6 +93,7 @@ public static class LinkController
         GetTargetedBlock.ClearSelection();
         linkedCharacter = null;
         outOfRange = false;
+        combatPaused = false;
         ticks = 0;
         enemyCheckTicks = 0;
         if (message != null)
@@ -96,10 +101,20 @@ public static class LinkController
         if (changed) NotifyStateChanged();
     }
 
-    private static void DisconnectForCombat()
+    private static void SetCombatPaused(bool paused)
     {
-        Disconnect();
-        CombatLockout.ReportBlocked();
+        if (combatPaused == paused) return;
+        combatPaused = paused;
+        if (paused)
+        {
+            pendingPlacement.Clear();
+            ClearGrinder();
+            ticks = 0;
+        }
+        NotifyStateChanged();
+        MyAPIGateway.Utilities?.ShowNotification(paused
+            ? "Lanyard paused. Link retained."
+            : outOfRange ? "Lanyard is clear; transfers remain paused outside bounds." : "Lanyard resumed.", 4000, "White");
     }
 
     private static void ClearGrinder()
@@ -145,18 +160,16 @@ public static class LinkController
         return now < grinderGraceUntil;
     }
 
-    private static bool CanTransfer()
+    private static bool ValidateLink()
     {
+        if (MySession.Static == null || MyAPIGateway.Session == null)
+        {
+            Disconnect();
+            return false;
+        }
         var character = MySession.Static?.LocalCharacter;
         var block = GetTargetedBlock.selectedBlock;
         if (block == null) return false;
-        var grid = block.CubeGrid as MyCubeGrid;
-        CombatLockout.FollowGrid(grid);
-        if (CombatLockout.IsBlocked)
-        {
-            DisconnectForCombat();
-            return false;
-        }
         if (character == null || character != linkedCharacter || character.Closed || character.IsDead)
         {
             Disconnect("Lanyard disconnected: character changed or unavailable.");
@@ -167,11 +180,19 @@ public static class LinkController
             Disconnect("Lanyard disconnected: inventory unavailable or access revoked.");
             return false;
         }
+        var portOwner = GetTargetedBlock.selectedObject?.Owner;
+        if (portOwner == null || portOwner.Closed || portOwner.MarkedForClose)
+        {
+            Disconnect("Lanyard disconnected: inventory port unavailable.");
+            return false;
+        }
+        var grid = block.CubeGrid as MyCubeGrid;
         if (grid == null || grid.Closed || grid.MarkedForClose)
         {
             Disconnect("Lanyard disconnected: grid unavailable.");
             return false;
         }
+        CombatLockout.FollowGrid(grid);
         var distance = LinkArea.DistanceOutside(grid, character.PositionComp.GetPosition());
         if (distance > LinkArea.BreakDistance)
         {
@@ -185,9 +206,19 @@ public static class LinkController
             NotifyStateChanged();
             MyAPIGateway.Utilities?.ShowNotification(paused
                 ? "Outside linked grid bounds. Transfers paused."
-                : "Back inside the working area. Transfers resumed.", 4000, "White");
+                : combatPaused || CombatLockout.IsBlocked ? "Back inside the working area. Lanyard remains paused."
+                    : "Back inside the working area. Transfers resumed.", 4000, "White");
         }
-        return !paused;
+        return true;
+    }
+
+    private static bool CanTransfer()
+    {
+        if (!ValidateLink()) return false;
+        // A clear timer alone is insufficient if an overlap is still present.
+        if (combatPaused && !CombatLockout.IsBlocked && !CheckEnemies()) return false;
+        SetCombatPaused(CombatLockout.IsBlocked);
+        return !combatPaused && !outOfRange;
     }
 
     public static void Update()
@@ -197,10 +228,10 @@ public static class LinkController
             Disconnect();
             return;
         }
-        // Observe release even while outside bounds, so returning cannot renew an old tail.
-        ObserveGrinder();
-        if (GetTargetedBlock.selectedBlock != null)
-            CombatLockout.FollowGrid(GetTargetedBlock.selectedBlock.CubeGrid as MyCubeGrid);
+        // Hard failures still end a retained link while combat has it paused.
+        if (GetTargetedBlock.selectedBlock != null && !ValidateLink()) return;
+        // Observe release outside bounds, but never renew a grinder tail during combat.
+        if (!combatPaused) ObserveGrinder();
         CombatLockout.Update();
         var blocked = CombatLockout.IsBlocked;
         if (blocked != previouslyBlocked)
@@ -209,12 +240,7 @@ public static class LinkController
             NotifyStateChanged();
         }
         if (GetTargetedBlock.selectedBlock == null) return;
-        if (CombatLockout.IsBlocked)
-        {
-            DisconnectForCombat();
-            return;
-        }
-        // Scan even while paused. Also rescan immediately before a transfer batch.
+        // Continue refreshing hostile activity even while the combat timer is active.
         if (++enemyCheckTicks >= 30)
         {
             enemyCheckTicks = 0;
@@ -328,7 +354,14 @@ public static class LinkController
     private static bool CheckEnemies()
     {
         var grid = GetTargetedBlock.selectedBlock?.CubeGrid as MyCubeGrid;
-        if (LinkArea.CheckEnemies(grid, out var reason)) return true;
+        if (LinkArea.CheckEnemies(grid, out var reason, out var hostileOverlap)) return true;
+        if (hostileOverlap)
+        {
+            CombatLockout.FollowGrid(grid);
+            CombatLockout.ObserveEnemyOverlap();
+            SetCombatPaused(true);
+            return false;
+        }
         Disconnect(reason);
         return false;
     }
@@ -347,12 +380,12 @@ public static class LinkController
             if (!oreOnly)
             {
                 if (!ObserveGrinder(false) || !ReferenceEquals(grinder, trackedGrinder)) return;
-                var grid = GetTargetedBlock.selectedBlock?.CubeGrid as MyCubeGrid;
-                if (!ReferenceEquals(grid, checkedGrid))
-                {
-                    if (!CheckEnemies()) return;
-                    checkedGrid = grid;
-                }
+            }
+            var grid = GetTargetedBlock.selectedBlock?.CubeGrid as MyCubeGrid;
+            if (!ReferenceEquals(grid, checkedGrid))
+            {
+                if (!CheckEnemies()) return;
+                checkedGrid = grid;
             }
             var destination = (MyInventory)GetTargetedBlock.selectedBlock.GetInventory();
             MyInventory.TransferByPlanner(source, destination, item.Content.GetObjectId(),

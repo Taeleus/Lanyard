@@ -144,6 +144,7 @@ internal static class Program
         FrameworkAuditTests.Run(Check);
         WeaponCoreCleanupTests.Run(Check);
         WeaponCoreRegistrationTests.Run(Check);
+        EnemyOverlapCooldownTests.Run(Check);
         GridOwnershipCacheTests.Run(Check);
         OwnershipRelationTests.Run(Check);
         TestBoundsAccess();

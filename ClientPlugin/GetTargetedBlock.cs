@@ -36,17 +36,20 @@ public static class GetTargetedBlock
 
     public static void GetPort()
     {
-        LinkController.Disconnect();
         bool connected = false;
+        bool preserveExistingLink = false;
         try
         {
             var utils = MyAPIGateway.Utilities;
+            if (selectedBlock != null) CombatLockout.FollowGrid(selectedBlock.CubeGrid as MyCubeGrid);
             CombatLockout.Update();
-            if (CombatLockout.IsBlocked)
+            if (CombatLockout.IsBlocked || (selectedBlock != null && LinkController.IsCombatPaused))
             {
+                preserveExistingLink = selectedBlock != null;
                 CombatLockout.ReportBlocked();
                 return;
             }
+            LinkController.Disconnect();
             var character = MySession.Static?.LocalCharacter;
             var caster = character?.EquippedTool?.Components?.Get<MyCasterComponent>();
             var block = caster?.HitBlock;
@@ -107,7 +110,7 @@ public static class GetTargetedBlock
         finally
         {
             // Includes exceptions after a successful scan or partial selection.
-            if (!connected) LinkController.Disconnect();
+            if (!connected && !preserveExistingLink) LinkController.Disconnect();
         }
     }
 

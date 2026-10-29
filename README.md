@@ -2,11 +2,11 @@
 
 Lanyard connects your character's tools to one selected inventory port, helping you build, grind and drill without carrying every material yourself.
 
-**Lanyard v0.1.2** is a Space Engineers 1 client plugin for **Pulsar Legacy**. No server mod is required.
+**Lanyard v0.2.0** is a Space Engineers 1 client plugin for **Pulsar Legacy**. No server mod is required.
 
 ## Start here
 
-1. Enable **Lanyard v0.1.2** in Pulsar and restart the game.
+1. Enable **Lanyard v0.2.0** in Pulsar and restart the game.
 2. Equip a welder, grinder or drill and aim at the inventory access port you want to use.
 3. Type `/ly` to connect.
 4. Open **K → Lanyard** for status and connection controls, or type `/ly menu` to open the standalone panel. Use `/ly bounds` to see your working area.
@@ -38,9 +38,11 @@ Every command also works with `/lanyard` in place of `/ly`. Commands are case-in
 
 Use a personally owned inventory or one explicitly faction-shared by a faction member. Unowned, enemy and Share All-only ports do not qualify.
 
-Work inside the selected container's grid bounds. Transfers pause outside, and the link breaks more than **100 m** beyond those bounds. Separate subgrids do not enlarge the working area. An overlapping enemy grid can also block the link.
+Work inside the selected container's grid bounds. Transfers pause outside, and the link breaks more than **100 m** beyond those bounds. Separate subgrids do not enlarge the working area. Losing access to the selected inventory also breaks the link.
 
-Combat disables Lanyard for **two minutes after the latest qualifying activity**, including ship damage, weapon fire and supported EMP or jump-inhibition effects. Friendly deconstruction is supported. Players see **Lanyard unavailable** when blocked; detailed reasons appear in the game log.
+Combat or enemy overlap **pauses transfers while keeping your selected inventory linked**. Lanyard resumes automatically once **two minutes have passed since the latest detection**, provided you are back inside the working area and still have access. New combat activity or continued enemy overlap extends the pause.
+
+Combat detection includes ship damage, weapon fire and supported EMP or jump-inhibition effects. Friendly deconstruction is supported. The connection panel shows when the link is paused; detailed reasons appear in the game log.
 
 ## Compatibility
 
