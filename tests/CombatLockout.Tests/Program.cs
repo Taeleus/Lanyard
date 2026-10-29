@@ -143,6 +143,7 @@ internal static class Program
         GridAnchorTransitionTests.Run(Check);
         FrameworkAuditTests.Run(Check);
         WeaponCoreCleanupTests.Run(Check);
+        WeaponCoreRegistrationTests.Run(Check);
         GridOwnershipCacheTests.Run(Check);
         OwnershipRelationTests.Run(Check);
         TestBoundsAccess();

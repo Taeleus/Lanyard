@@ -17,7 +17,7 @@ namespace Lanyard;
 internal sealed class WeaponCoreMonitor : IDisposable
 {
     internal const long Channel = 67549756549;
-    private const long DamageRegistration = 578196204731;
+    private const long DamageRegistration = 0x4C414E5941524401L;
     private readonly HashSet<MyDefinitionId> definitions = new HashSet<MyDefinitionId>();
     private readonly HashSet<Weapon> watched = new HashSet<Weapon>();
     private Func<MyEntity, bool> hasWeapon;

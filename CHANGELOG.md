@@ -1,5 +1,10 @@
 # Lanyard changelog
 
+## v0.1.2 — 2026-10-29
+
+- Give Lanyard's WeaponCore damage listener its own stable registration ID, keeping registration and cleanup independent of other observers.
+- Add regression checks for listener coexistence, load order and cleanup.
+
 ## v0.1.1 — 2026-10-29
 
 - Simplify the plugin description and menu help around tool functions and everyday usage.

@@ -1,6 +1,6 @@
 # Development and release preparation
 
-The current version is **Lanyard v0.1.1**. Publication is pending; building or installing locally does not publish a release or register the plugin with PluginHub.
+The current version is **Lanyard v0.1.2**. Publication is pending; building or installing locally does not publish a release or register the plugin with PluginHub.
 
 ## Build
 

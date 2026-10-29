@@ -33,7 +33,7 @@ internal sealed class FakeWeaponCore
         public List<Action<int, bool>> Observers = new List<Action<int, bool>>();
     }
     private readonly Dictionary<MyEntity, Dictionary<int, Part>> weapons = new Dictionary<MyEntity, Dictionary<int, Part>>();
-    private Action<DamageBatch> damage;
+    private readonly Dictionary<long, Action<DamageBatch>> damageObservers = new Dictionary<long, Action<DamageBatch>>();
     public bool ThrowPolling;
     public bool ThrowCleanup;
     public int HasCalls, MapCalls, ShotCalls;
@@ -47,7 +47,14 @@ internal sealed class FakeWeaponCore
     public readonly HashSet<object> MapInstances = new HashSet<object>();
     public readonly HashSet<MyEntity> SupportEntities = new HashSet<MyEntity>();
     public int ObserverCount => weapons.Values.Sum(parts => parts.Values.Sum(p => p.Observers.Count));
-    public bool DamageRegistered => damage != null;
+    public bool DamageRegistered => damageObservers.Count != 0;
+    public int DamageObserverCount => damageObservers.Count;
+    public void RegisterDamageObserver(long id, int eventType, Action<DamageBatch> observer)
+    {
+        if (ThrowCleanup) throw new InvalidOperationException("WC already unloaded");
+        if (eventType == 0) damageObservers.Remove(id);
+        else if (!damageObservers.ContainsKey(id)) damageObservers.Add(id, observer);
+    }
     public void Add(MyEntity entity, params int[] ids) { weapons[entity] = ids.ToDictionary(id => id, id => new Part()); }
     public Part State(MyEntity entity, int id) { return weapons[entity][id]; }
     public void Event(MyEntity entity, int id, int kind, bool active)
@@ -100,11 +107,7 @@ internal sealed class FakeWeaponCore
                 if (ThrowCleanup) throw new InvalidOperationException("WC already unloaded");
                 State(entity, id).Observers.Remove(callback);
             }),
-            ["DamageHandler"] = new Action<long, int, Action<DamageBatch>>((id, kind, callback) =>
-            {
-                if (ThrowCleanup) throw new InvalidOperationException("WC already unloaded");
-                damage = kind == 0 ? null : callback;
-            })
+            ["DamageHandler"] = new Action<long, int, Action<DamageBatch>>(RegisterDamageObserver)
         };
         if (MissingMethod != null) methods.Remove(MissingMethod);
         if (IncompatibleMethod != null) methods[IncompatibleMethod] = new Action(() => { });
@@ -117,6 +120,6 @@ internal sealed class FakeWeaponCore
         {
             new MyTuple<ulong, long, int, MyEntity, MyEntity, ListReader<MyTuple<Vector3D, object, float>>>(1, 1, 0, null, null, new ListReader<MyTuple<Vector3D, object, float>>(hits))
         };
-        damage?.Invoke(new DamageBatch(batch));
+        foreach (var observer in damageObservers.Values.ToArray()) observer(new DamageBatch(batch));
     }
 }

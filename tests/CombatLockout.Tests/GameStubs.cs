@@ -270,6 +270,7 @@ namespace Sandbox.ModAPI
         public bool FailWrites;
         public int Writes;
         public Action OnApiRequest;
+        public long RegisteredMessageChannel, UnregisteredMessageChannel, RequestedMessageChannel;
         public readonly List<Action<object>> Handlers = new List<Action<object>>();
         public bool FileExistsInGlobalStorage(string file) { if (FailReads) throw new IOException("Read failed"); return Files.ContainsKey(file); }
         public TextReader ReadFileInGlobalStorage(string file) { if (FailReads) throw new IOException("Read failed"); return new StringReader(Files[file]); }
@@ -285,9 +286,9 @@ namespace Sandbox.ModAPI
             public Writer(Action<string> save) { this.save = save; }
             protected override void Dispose(bool disposing) { if (disposing) save(ToString()); base.Dispose(disposing); }
         }
-        public void RegisterMessageHandler(long channel, Action<object> handler) { Handlers.Add(handler); }
-        public void UnregisterMessageHandler(long channel, Action<object> handler) { Handlers.Remove(handler); }
-        public void SendModMessage(long channel, object value) { if (value is string) OnApiRequest?.Invoke(); }
+        public void RegisterMessageHandler(long channel, Action<object> handler) { RegisteredMessageChannel = channel; Handlers.Add(handler); }
+        public void UnregisterMessageHandler(long channel, Action<object> handler) { UnregisteredMessageChannel = channel; Handlers.Remove(handler); }
+        public void SendModMessage(long channel, object value) { RequestedMessageChannel = channel; if (value is string) OnApiRequest?.Invoke(); }
         public void Broadcast(object value) { foreach (var handler in Handlers.ToArray()) handler(value); }
     }
     public class GridGroups
