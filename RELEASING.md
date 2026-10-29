@@ -14,7 +14,7 @@ dotnet build ClientPlugin/ClientPlugin.csproj -c Release -p:RunPostBuildEvent=Ne
 
 Windows builds target `net48` and `net10.0`. Pulsar Legacy uses the `net48` build. If game auto-detection fails, pass `-p:Bin64="<SpaceEngineers installation>/Bin64"`.
 
-`ClientPlugin/BuildVersion.cs` is the shared assembly and informational version source. Keep its three-part version consistent with the friendly name in `Lanyard.xml` and the documentation.
+`ClientPlugin/BuildVersion.cs` is the shared assembly and informational version source. Keep its three-part version consistent with the version documentation. Keep `FriendlyName` in `Lanyard.xml` set to `Lanyard` across releases.
 
 ## Install locally
 

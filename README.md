@@ -6,7 +6,7 @@ Lanyard connects your character's tools to one selected inventory port, helping 
 
 ## Start here
 
-1. Enable **Lanyard v0.2.1** in Pulsar and restart the game.
+1. Enable **Lanyard** in Pulsar and restart the game.
 2. Equip a welder, grinder or drill and aim at the inventory access port you want to use.
 3. Type `/ly` to connect.
 4. Open **K → Lanyard** for status and connection controls, or type `/ly menu` to open the standalone panel. Use `/ly bounds` to see your working area.

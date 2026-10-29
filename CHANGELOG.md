@@ -2,6 +2,7 @@
 
 ## v0.2.1 — 2026-10-29
 
+- Keep the launcher display name as Lanyard across releases.
 - Remember the selected inventory and exact access port through reconnects and server transfers that preserve container identity.
 - Restore the connection after replication and fresh access, range and safety checks.
 - Preserve cooldown expiry through reconnects, including time spent offline.
