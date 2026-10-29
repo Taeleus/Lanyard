@@ -5,7 +5,7 @@
   <!-- GitHub repository ID -->
   <RepoId>Taeleus/Lanyard</RepoId>
   <!-- The name of your plugin that will appear in the plugin list -->
-  <FriendlyName>Lanyard v0.1.2</FriendlyName>
+  <FriendlyName>Lanyard</FriendlyName>
   <!-- The author name that you want to appear in the plugin list -->
   <Author>Taeleus</Author>
   <!-- Optional tooltip for the plugin in the plugin list -->

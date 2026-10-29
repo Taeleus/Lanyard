@@ -29,6 +29,8 @@ dotnet build ClientPlugin/ClientPlugin.csproj -c Release -p:RunPostBuildEvent=Ne
 
 ## In-game checklist
 
+These checks have not been recorded as complete. Keep the PluginHub submission in draft until their results are recorded.
+
 Restart with Lanyard enabled and other inventory-link plugins disabled. Use a survival world, owned cargo with free space and a quiet grid.
 
 - [ ] Open **K → Lanyard** and `/ly menu`. Check status, keyboard focus, linking, unlinking, bounds and Close; confirm `/lanyard` aliases work.

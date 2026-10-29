@@ -2,6 +2,7 @@
 
 ## v0.1.2 — 2026-10-29
 
+- Keep the launcher display name as Lanyard across releases.
 - Give Lanyard's WeaponCore damage listener its own stable registration ID, keeping registration and cleanup independent of other observers.
 - Add regression checks for listener coexistence, load order and cleanup.
 
