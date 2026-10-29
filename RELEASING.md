@@ -22,7 +22,7 @@ Run `./Deploy-LocalDev.ps1` to build the Legacy target and install it in `%APPDA
 
 Enable Lanyard manually, disable other inventory-link variants, and restart the game after replacing a loaded build.
 
-See [validation](docs/VALIDATION.md) for reproducible checks and the remaining in-game checklist.
+Offline development harnesses are under `tests/`. Run an individual project with `dotnet run --project <project> -c Release` when working on the code.
 
 ## Prepare publication
 
