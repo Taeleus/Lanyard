@@ -55,4 +55,4 @@ Assign Ctrl/Alt key combinations or function keys for linking, opening the menu,
 
 Preferences save locally across reconnects and restarts. **Reset all settings** restores tool choices, HUD appearance, manual pause and shortcuts while keeping your connection and combat cooldown.
 
-See [version history](CHANGELOG.md), [source build instructions](RELEASING.md) and the [MIT license](LICENSE). Copyright 2026 Taeleus; the [template license notice](LICENSES/client-plugin-template.MIT.txt) is retained with the source.
+See [version history](CHANGELOG.md), [source build instructions](RELEASING.md) and the [MIT license](LICENSE). Copyright holders: Bushfiend, TheCrunchy and Taeleus. The [template license notice](LICENSES/client-plugin-template.MIT.txt) is retained with the source.
