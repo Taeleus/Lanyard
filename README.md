@@ -2,7 +2,7 @@
 
 Lanyard links your tools to one inventory port, helping you build, grind and drill without carrying every material yourself.
 
-**Lanyard v0.3.4** is a Space Engineers 1 client plugin for **Pulsar Legacy**. No server mod is required.
+**Lanyard v0.3.5** is a Space Engineers 1 client plugin for **Pulsar Legacy**. No server mod is required.
 
 ## Start here
 
@@ -43,7 +43,7 @@ Transfers run inside the selected container's grid bounds. They pause outside, a
 
 Combat or hostile grid overlap **pauses transfers while keeping your link**. Transfers can resume after **two minutes of connected time without a new detection**, while you are inside the working area with access. New activity or continued hostile overlap extends the pause. Time away preserves the remaining cooldown; reconnecting or unlinking does not clear it.
 
-Saved links wait for the same player, container and port after reconnecting, then check access and range again. Re-link manually if a server transfer replaces the saved player or container.
+Saved links wait for the same player, container and port after reconnecting, then check access and range again. If your saved container is unavailable, use `/ly off` to forget it before linking another. Re-link manually if a server transfer replaces the saved player or container.
 
 ## Make it yours
 

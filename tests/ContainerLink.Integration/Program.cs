@@ -392,6 +392,7 @@ internal static partial class Program
 
     public static void Main()
     {
+        PendingLinkFeedbackTests();
         WelderDispatchTests();
         GrinderFiringAndCategories();
         FiringStopsBetweenItems();

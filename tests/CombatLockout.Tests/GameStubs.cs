@@ -284,6 +284,7 @@ namespace Sandbox.ModAPI
         public bool FailReads;
         public bool FailWrites;
         public int Writes;
+        public int WriteAttempts, Flushes, Publications, Commits;
         public Action OnApiRequest;
         public long RegisteredMessageChannel, UnregisteredMessageChannel, RequestedMessageChannel;
         public readonly List<Action<object>> Handlers = new List<Action<object>>();

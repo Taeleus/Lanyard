@@ -54,9 +54,23 @@ internal static class CooldownTestStorage
         Field("writeRecord").SetValue(null, (Action<FileStream, byte[]>)((stream, bytes) =>
         {
             var utilities = MyAPIGateway.Utilities;
+            utilities.WriteAttempts++;
             if (utilities.FailWrites) throw new IOException("Injected write failure.");
             utilities.Writes++;
             write(stream, bytes);
+        }));
+        var flush = (Action<FileStream>)Field("flushRecord").GetValue(null);
+        Field("flushRecord").SetValue(null, (Action<FileStream>)(stream =>
+        {
+            MyAPIGateway.Utilities.Flushes++;
+            flush(stream);
+        }));
+        var publish = (Action<string, string>)Field("publishRecord").GetValue(null);
+        Field("publishRecord").SetValue(null, (Action<string, string>)((temporary, path) =>
+        {
+            MyAPIGateway.Utilities.Publications++;
+            publish(temporary, path);
+            MyAPIGateway.Utilities.Commits++;
         }));
     }
     public static void Cleanup()

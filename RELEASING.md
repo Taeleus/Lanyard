@@ -1,6 +1,6 @@
 # Development and release preparation
 
-The current version is **Lanyard v0.3.4**. Approved releases are merged to `master`; ongoing development stays on `dev`. Building or installing locally does not publish a release or register the plugin with PluginHub.
+The current version is **Lanyard v0.3.5**. Approved releases are merged to `master`; ongoing development stays on `dev`. Building or installing locally does not publish a release or register the plugin with PluginHub.
 
 ## Build
 

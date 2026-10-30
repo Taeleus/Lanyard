@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.Security;
 using Sandbox.Game.Entities;
 using Sandbox.Game.Entities.Cube;
 using Sandbox.Game.Weapons;
@@ -8,6 +10,7 @@ using Sandbox.Game.World;
 using Sandbox.ModAPI;
 using VRage.Game.Entity;
 using VRage.Game.ModAPI;
+using VRage.FileSystem;
 using VRage.Utils;
 using VRageMath;
 
@@ -33,6 +36,9 @@ internal static class CombatLockout
     private static bool started;
     private static CombatCooldownStore store;
     private static bool storeLoaded;
+    private static bool storageUnavailable;
+    private static long nextStorageRetry;
+    private static Func<long> persistenceTimestamp = Stopwatch.GetTimestamp;
     private static long frozenRemaining;
     private static WeaponCoreMonitor weaponCore;
     private static NonDamageEffectMonitor effects;
@@ -47,7 +53,7 @@ internal static class CombatLockout
     private static string failureReason;
     private static string groupReason;
 
-    private static bool Unavailable => !started || failed || groupUnavailable || effects?.IsBlocking == true ||
+    private static bool Unavailable => !started || failed || storageUnavailable || groupUnavailable || effects?.IsBlocking == true ||
         (weaponCore != null && (weaponCore.Failed || (weaponCore.Required && !weaponCore.Ready)));
 
     public static bool IsBlocked => Unavailable || cooldown.IsBlocked(Stopwatch.GetTimestamp());
@@ -63,6 +69,7 @@ internal static class CombatLockout
         {
             if (!started) return "combat monitor not started";
             if (failed) return "monitoring failure: " + failureReason;
+            if (storageUnavailable) return "cooldown storage unavailable; retrying";
             if (groupUnavailable) return groupReason ?? "construct observer unavailable";
             if (weaponCore?.Failed == true) return "WeaponCore observer failed: " + weaponCore.FailureReason;
             if (weaponCore?.Required == true && !weaponCore.Ready) return "waiting for WeaponCore API";
@@ -221,14 +228,15 @@ internal static class CombatLockout
         {
             var now = Stopwatch.GetTimestamp();
             var deadline = Math.Max(cooldown.Deadline, frozenRemaining > 0 ? now + frozenRemaining : 0);
-            try { store.Save(deadline, true); frozenRemaining = 0; }
+            var saved = false;
+            try { saved = SaveCooldown(deadline, true); }
             catch (Exception exception)
             {
-                // A stale shorter disk record cannot refund active combat after
-                // an in-process handoff. Retain the frozen remainder for retry.
-                frozenRemaining = Math.Max(frozenRemaining, Math.Max(0, deadline - now));
                 Fail(exception);
             }
+            // A stale shorter disk record cannot refund active combat after
+            // an in-process handoff, including while a retry is throttled.
+            frozenRemaining = saved ? 0 : Math.Max(frozenRemaining, Math.Max(0, deadline - now));
         }
         started = false;
         MyEntities.OnEntityAdd -= EntityAdded;
@@ -300,7 +308,7 @@ internal static class CombatLockout
             coreHandWeapon?.Poll();
             foreach (var activity in grids.Values) activity.PollWeapons();
             RefreshGroup();
-            store?.Save(cooldown.Deadline);
+            SaveCooldown(cooldown.Deadline);
         }
         catch (Exception exception) { Fail(exception); }
     }
@@ -384,8 +392,32 @@ internal static class CombatLockout
     {
         if (deadline > cooldown.Deadline) cooldownReason = reason ?? "combat activity";
         cooldown.Include(deadline);
-        try { if (started) store?.Save(cooldown.Deadline); }
+        try { if (started) SaveCooldown(cooldown.Deadline); }
         catch (Exception exception) { Fail(exception); }
+    }
+
+    private static bool SaveCooldown(long deadline, bool force = false)
+    {
+        if (!storeLoaded || store == null) return false;
+        var now = persistenceTimestamp();
+        // Fresh activity and clean handoffs must not turn an unavailable disk
+        // into a per-event/per-frame retry loop. Observers keep the live timer.
+        if (storageUnavailable && now < nextStorageRetry) return false;
+        try
+        {
+            store.Save(deadline, force);
+            storageUnavailable = false;
+            nextStorageRetry = 0;
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException ||
+            exception is SecurityException || (exception is InvalidOperationException && string.IsNullOrEmpty(MyFileSystem.UserDataPath)))
+        {
+            if (!storageUnavailable) MyLog.Default.WriteLineAndConsole("Lanyard cooldown storage unavailable; retrying: " + exception);
+            storageUnavailable = true;
+            nextStorageRetry = now + Stopwatch.Frequency;
+            return false;
+        }
     }
 
     private static void ObserveActivity(string reason)
