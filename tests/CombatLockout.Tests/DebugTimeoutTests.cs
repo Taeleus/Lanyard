@@ -41,7 +41,6 @@ internal static class DebugTimeoutTests
         foreach (var activity in grids.Values)
         {
             activity.GetType().GetProperty("Until").SetValue(activity, 0L);
-            activity.GetType().GetProperty("ObservationUntil").SetValue(activity, 0L);
         }
         MyAPIGateway.Utilities.Files.Clear();
     }
@@ -51,10 +50,10 @@ internal static class DebugTimeoutTests
         check(CombatLockout.CooldownSeconds == 120, "release feedback: configured duration is two minutes");
         var grid = World();
         CombatLockout.Start();
-        check(!CombatLockout.CanConnect(grid), "release feedback: unknown-grid observation still prevents connection");
-        check(Contains(CombatLockout.BlockReason, "New grid observation"),
-            "release feedback: a fresh grid has an observation cause rather than a damage cause");
-        check(Contains(CombatLockout.BlockReason, "Debug grid"), "release feedback: observation reason identifies the selected grid");
+        check(CombatLockout.CanConnect(grid), "release feedback: a quiet new grid is immediately available");
+        check(CombatLockout.BlockReason == null, "release feedback: quiet readiness invents no combat cause");
+        check(CombatLockout.RemainingSeconds == 0, "release feedback: quiet readiness has no countdown");
+        grid.Damage(1);
         CombatLockout.ReportBlocked();
         check(MyAPIGateway.Utilities.ChatMessages.Count == 0,
             "release feedback: blocked connection does not emit a diagnostic chat message");
@@ -67,7 +66,8 @@ internal static class DebugTimeoutTests
         check(VRage.Utils.MyLog.Default.Lines.Exists(line => Contains(line, CombatLockout.BlockReason)),
             "release feedback: detailed trigger provenance remains in the game log");
 
-        MyAPIGateway.Utilities.Files[CombatCooldownStore.FileName] = DateTime.UtcNow.AddMinutes(10).Ticks.ToString();
+        MyAPIGateway.Utilities.Files.Remove(CombatCooldownStore.FileName);
+        MyAPIGateway.Utilities.Files[CombatCooldownStore.LegacyFileName] = DateTime.UtcNow.AddMinutes(10).Ticks.ToString();
         var restored = new CombatCooldownStore().Load();
         check(restored <= Stopwatch.GetTimestamp() + CombatLockout.CooldownSeconds * Stopwatch.Frequency &&
             restored > Stopwatch.GetTimestamp() + (CombatLockout.CooldownSeconds - 1) * Stopwatch.Frequency,
@@ -98,8 +98,8 @@ internal static class DebugTimeoutTests
         var core = new FakeWeaponCore(); core.RespondOnRequest();
         var coreGun = new CoreGun(); grid.Add(coreGun); core.Add(coreGun, 3);
         CombatLockout.Start(); CombatLockout.CanConnect(grid);
-        check(Contains(CombatLockout.BlockReason, "WeaponCore weapon observation started"),
-            "release feedback: newly observed WeaponCore weapons have a distinct initialization cause");
+        check(CombatLockout.BlockReason == null && !CombatLockout.IsBlocked,
+            "release feedback: idle WeaponCore initialization creates no combat cause");
         ObserveQuiet(); CombatLockout.CanConnect(grid);
         core.Event(coreGun, 3, 1, true);
         check(Contains(CombatLockout.BlockReason, "firing event") && Contains(CombatLockout.BlockReason, "part 3") &&
@@ -137,7 +137,7 @@ internal static class DebugTimeoutTests
             "release feedback: monitoring failures expose the underlying exception message");
 
         grid = World();
-        MyAPIGateway.Utilities.Files[CombatCooldownStore.FileName] = DateTime.UtcNow.AddMinutes(10).Ticks.ToString();
+        MyAPIGateway.Utilities.Files[CombatCooldownStore.LegacyFileName] = DateTime.UtcNow.AddMinutes(10).Ticks.ToString();
         CombatLockout.Start();
         check(Contains(CombatLockout.BlockReason, "Restored cooldown"),
             "release feedback: persisted state is identified when its original trigger is unavailable");

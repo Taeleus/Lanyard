@@ -15,6 +15,9 @@
     <Compile Include="../../ClientPlugin/GetTargetedBlock.cs" Link="GetTargetedBlock.cs" />
     <Compile Include="../../ClientPlugin/Commands.cs" Link="Commands.cs" />
     <Compile Include="../../ClientPlugin/Plugin.cs" Link="Plugin.cs" />
+    <Compile Include="../../ClientPlugin/LanyardSettings.cs" Link="LanyardSettings.cs" />
+    <Compile Include="../../ClientPlugin/PlannerAvailability.cs" Link="PlannerAvailability.cs" />
+    <Compile Include="../../ClientPlugin/TransferFeedback.cs" Link="TransferFeedback.cs" />
     <PackageReference Include="Lib.Harmony" Version="2.4.2" />
   </ItemGroup>
 </Project>

@@ -138,11 +138,14 @@ internal sealed class WeaponCoreMonitor : IDisposable
     public void ObserveRemovedHandheld(MyEntity entity, MyDefinitionId? definition, Action<string> activity)
     {
         if (disposed || !Ready) return;
-        // Physical rifle definitions survive teardown of the core component.
-        // The provider query also covers custom handheld entities. Ordinary
-        // engineer tools satisfy neither check and receive no lockout.
+        // Classification/positive lifetime count alone is not recent firing.
+        // Probe live state while it exists; closed entities add no evidence.
         if ((definition.HasValue && definitions.Contains(definition.Value)) || hasWeapon(entity))
-            activity("WeaponCore handheld observation after holster");
+        {
+            var observer = Watch(entity, definition, activity, true);
+            try { observer.Poll(); }
+            finally { observer.Dispose(); }
+        }
     }
 
     public void Dispose()
@@ -265,9 +268,8 @@ internal sealed class WeaponCoreMonitor : IDisposable
                         part.Registered = true;
                     }
                     identified = true;
-                    // Only an explicitly restored, previously identified entity
-                    // inherits observation history. Live firing checks still run.
-                    if (!resumeObservation) activity("WeaponCore weapon observation started");
+                    // Identification establishes a baseline, not combat. Only
+                    // live shooting/events or subsequent counter changes count.
                 }
                 foreach (var entry in parts)
                 {

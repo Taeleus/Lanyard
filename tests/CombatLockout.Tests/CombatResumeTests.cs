@@ -39,7 +39,6 @@ internal static class CombatResumeTests
         foreach (var activity in activities.Values)
         {
             activity.GetType().GetProperty("Until").SetValue(activity, 0L);
-            activity.GetType().GetProperty("ObservationUntil").SetValue(activity, 0L);
         }
         Timer.Clear();
         MyAPIGateway.Utilities.Files.Clear();
@@ -81,10 +80,10 @@ internal static class CombatResumeTests
 
             state = KnownState(out gridId, out weaponId);
             grid = Rebind(state, gridId + 1000000, weaponId, out gun, out provider);
-            check(!CombatLockout.CanConnect(grid), "combat resume: an unknown grid still requires initial quiet observation");
+            check(CombatLockout.CanConnect(grid), "combat resume: a quiet unknown grid requires no invented observation cooldown");
             state = KnownState(out gridId, out weaponId);
             grid = Rebind(state, gridId, weaponId + 1000000, out gun, out provider);
-            check(!CombatLockout.CanConnect(grid), "combat resume: an unknown weapon still requires initial quiet observation");
+            check(CombatLockout.CanConnect(grid), "combat resume: an idle unknown weapon requires no invented observation cooldown");
 
             state = KnownState(out gridId, out weaponId);
             grid = Rebind(state, gridId, weaponId, out gun, out provider, true);
@@ -156,12 +155,12 @@ internal static class CombatResumeTests
             state.GridIds = new long[CombatResumeState.MaxIds + 1];
             state.GridIds[0] = gridId;
             grid = Rebind(state, gridId, weaponId, out gun, out provider);
-            check(!CombatLockout.CanConnect(grid), "combat resume: oversized saved grid IDs fall back to normal warmup");
+            check(CombatLockout.CanConnect(grid), "combat resume: oversized history hints are ignored without inventing combat");
             state = KnownState(out gridId, out weaponId);
             state.GridIds = null;
             state.WeaponIds = null;
             grid = Rebind(state, gridId, weaponId, out gun, out provider);
-            check(!CombatLockout.CanConnect(grid), "combat resume: absent history arrays grant no observation exemption");
+            check(CombatLockout.CanConnect(grid), "combat resume: absent history arrays do not impose a quiet-grid timer");
         }
         finally
         {

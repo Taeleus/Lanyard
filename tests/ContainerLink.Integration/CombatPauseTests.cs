@@ -26,7 +26,7 @@ internal static partial class Program
             if (tool == "welder")
             {
                 world.Equip("WelderItem", new MyWelder());
-                world.Character.BuildPlanner.Add(new object());
+                world.Character.BuildPlanner.Add(new MyIdentity.BuildPlanItem());
             }
             if (tool != "placement") world.AddDepositItems();
             var port = GetTargetedBlock.selectedObject;

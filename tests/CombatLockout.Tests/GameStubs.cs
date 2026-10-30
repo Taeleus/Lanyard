@@ -180,6 +180,7 @@ namespace Sandbox.Game.Entities
         public event Action<MyCubeBlock> OnFatBlockAdded;
         public event Action<MyCubeBlock> OnFatBlockRemoved;
         public event Action<MyCubeGrid, MyCubeGrid> OnGridMerge;
+        public event Action<MyCubeGrid, MyCubeGrid> OnGridSplit;
         public event Action<MyCubeGrid, GridLinkTypeEnum> OnConnectionChangeCompleted;
         public event Action<MyCubeGrid> OnBlockOwnershipChanged;
         public int Subscribers => (OnGridBlockDamaged?.GetInvocationList().Length ?? 0)
@@ -187,6 +188,7 @@ namespace Sandbox.Game.Entities
             + (OnFatBlockAdded?.GetInvocationList().Length ?? 0)
             + (OnFatBlockRemoved?.GetInvocationList().Length ?? 0)
             + (OnGridMerge?.GetInvocationList().Length ?? 0)
+            + (OnGridSplit?.GetInvocationList().Length ?? 0)
             + (OnConnectionChangeCompleted?.GetInvocationList().Length ?? 0)
             + (OnBlockOwnershipChanged?.GetInvocationList().Length ?? 0);
         public void OwnershipChanged() { OnBlockOwnershipChanged?.Invoke(this); }
@@ -204,6 +206,7 @@ namespace Sandbox.Game.Entities
             if (block.FatBlock != null) OnFatBlockRemoved?.Invoke(block.FatBlock);
         }
         public void Merge(MyCubeGrid removed) { OnGridMerge?.Invoke(this, removed); }
+        public void Split(MyCubeGrid fragment) { OnGridSplit?.Invoke(this, fragment); }
         public void ConnectionsChanged() { OnConnectionChangeCompleted?.Invoke(this, GridLinkTypeEnum.Logical); }
     }
     public static class MyEntities
@@ -240,6 +243,7 @@ namespace Sandbox.Game.World
     }
     public class MySession
     {
+        public Guid WorldId = Guid.NewGuid();
         public int GameplayFrameCounter;
         public static MySession Static = new MySession();
         public Character LocalCharacter = new Character();
@@ -255,7 +259,12 @@ namespace Sandbox.ModAPI
     {
         public static BoundsSession Session = new BoundsSession();
         public static GridGroups GridGroups = new GridGroups();
-        public static Utilities Utilities = new Utilities();
+        private static Utilities utilities = new Utilities();
+        public static Utilities Utilities
+        {
+            get => utilities;
+            set { utilities = value; VRage.FileSystem.MyFileSystem.UserDataPath = value?.StoragePath; }
+        }
         public static Multiplayer Multiplayer = new Multiplayer();
     }
     public class Multiplayer { public ulong ServerId = 1; public bool IsServer { get; set; } }
@@ -265,7 +274,13 @@ namespace Sandbox.ModAPI
         public readonly List<string> Notifications = new List<string>();
         public void ShowMessage(string sender, string text) { ChatMessages.Add(sender + ": " + text); }
         public void ShowNotification(string text, int disappearTimeMs = 2000, string font = "White") { Notifications.Add(text); }
-        public Dictionary<string, string> Files = new Dictionary<string, string>();
+        public readonly string StoragePath = CooldownTestStorage.CreateRoot();
+        public readonly GlobalStorageFiles Files;
+        public Utilities()
+        {
+            Files = new GlobalStorageFiles(StoragePath);
+            VRage.FileSystem.MyFileSystem.UserDataPath = StoragePath;
+        }
         public bool FailReads;
         public bool FailWrites;
         public int Writes;
@@ -273,18 +288,15 @@ namespace Sandbox.ModAPI
         public long RegisteredMessageChannel, UnregisteredMessageChannel, RequestedMessageChannel;
         public readonly List<Action<object>> Handlers = new List<Action<object>>();
         public bool FileExistsInGlobalStorage(string file) { if (FailReads) throw new IOException("Read failed"); return Files.ContainsKey(file); }
-        public TextReader ReadFileInGlobalStorage(string file) { if (FailReads) throw new IOException("Read failed"); return new StringReader(Files[file]); }
+        public TextReader ReadFileInGlobalStorage(string file) { if (FailReads) throw new IOException("Read failed"); return File.OpenText(Files.PathFor(file)); }
         public TextWriter WriteFileInGlobalStorage(string file)
         {
             if (FailWrites) throw new IOException("Write failed");
             Writes++;
-            return new Writer(value => Files[file] = value);
-        }
-        private class Writer : StringWriter
-        {
-            private Action<string> save;
-            public Writer(Action<string> save) { this.save = save; }
-            protected override void Dispose(bool disposing) { if (disposing) save(ToString()); base.Dispose(disposing); }
+            Directory.CreateDirectory(Path.GetDirectoryName(Files.PathFor(file)));
+            // Native global storage opens FileMode.Create, so opening this
+            // boundary really truncates the current record.
+            return new StreamWriter(new FileStream(Files.PathFor(file), FileMode.Create, FileAccess.Write, FileShare.Read));
         }
         public void RegisterMessageHandler(long channel, Action<object> handler) { RegisteredMessageChannel = channel; Handlers.Add(handler); }
         public void UnregisterMessageHandler(long channel, Action<object> handler) { UnregisteredMessageChannel = channel; Handlers.Remove(handler); }

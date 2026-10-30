@@ -73,10 +73,25 @@ public sealed class LanyardScreen : MyGuiScreenBase
         panel?.Dispose();
         focusOrder.Clear();
         AddCaption("Lanyard");
-        panel = new LanyardPanel(Controls);
-        focusOrder.AddRange(panel.FocusOrder);
+        panel = new LanyardPanel(Controls, this);
         AddButton(0f, 0.285f, "Close", () => CloseScreen(), "Return to the game.");
         FocusedControl = panel.FocusControl;
+    }
+
+    public override bool Update(bool hasFocus)
+    {
+        var result = base.Update(hasFocus);
+        panel?.SetActive(hasFocus);
+        if (hasFocus) panel?.RefreshStatus();
+        var restore = hasFocus ? panel?.TakeFocusRequest() : null;
+        if (restore != null) FocusedControl = restore;
+        return result;
+    }
+
+    public override void HandleInput(bool receivedFocusInThisUpdate)
+    {
+        if (LanyardShortcuts.HandleCaptureEscape(this)) { panel?.RefreshStatus(); return; }
+        base.HandleInput(receivedFocusInThisUpdate);
     }
 
     protected override bool HandleKeyboardActiveIndex(MyDirection direction, bool page, bool loop)
@@ -85,13 +100,19 @@ public sealed class LanyardScreen : MyGuiScreenBase
         // the native screen's spatial navigation through these rows/columns.
         if (!page || (direction != MyDirection.Up && direction != MyDirection.Down))
             return base.HandleKeyboardActiveIndex(direction, page, loop);
-        if (focusOrder.Count == 0) return false;
+        var order = new List<MyGuiControlBase>();
+        if (panel != null)
+            foreach (var control in panel.FocusOrder)
+                if (control.Visible && control.Enabled) order.Add(control);
+        foreach (var control in focusOrder)
+            if (control.Visible && control.Enabled) order.Add(control);
+        if (order.Count == 0) return false;
         var step = direction == MyDirection.Down ? 1 : -1;
-        var index = focusOrder.IndexOf(FocusedControl);
+        var index = order.IndexOf(FocusedControl);
         var next = index < 0 ? 0 : index + step;
-        if (loop) next = (next + focusOrder.Count) % focusOrder.Count;
-        if (next < 0 || next >= focusOrder.Count) return false;
-        FocusedControl = focusOrder[next];
+        if (loop) next = (next + order.Count) % order.Count;
+        if (next < 0 || next >= order.Count) return false;
+        FocusedControl = order[next];
         return true;
     }
 

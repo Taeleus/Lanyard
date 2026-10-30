@@ -7,7 +7,7 @@ using VRage.Game.Entity;
 
 namespace Sandbox.Definitions
 {
-    public sealed class MyComponentDefinition { public MyDefinitionId Id; }
+    public sealed class MyComponentDefinition { public MyDefinitionId Id; public string DisplayNameText; }
     public sealed class MyCubeBlockDefinition
     {
         public sealed class Component { public MyComponentDefinition Definition; public int Count; }

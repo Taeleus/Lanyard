@@ -31,7 +31,6 @@ internal static class FriendlyGrindingTests
         CombatLockout.Start();
         var grids = (IDictionary)typeof(CombatLockout).GetField("grids", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
         foreach (var activity in grids.Values)
-            activity.GetType().GetProperty("ObservationUntil").SetValue(activity, 0L);
         if (!CombatLockout.CanConnect(grid)) throw new Exception("Friendly grinding fixture must start available");
         return grid;
     }

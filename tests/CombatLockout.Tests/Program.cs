@@ -59,7 +59,7 @@ internal static class Program
     {
         ResetTimer();
         var dictionary = (System.Collections.IDictionary)typeof(CombatLockout).GetField("grids", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
-        foreach (var activity in dictionary.Values) { activity.GetType().GetProperty("Until").SetValue(activity, 0L); activity.GetType().GetProperty("ObservationUntil").SetValue(activity, 0L); }
+        foreach (var activity in dictionary.Values) { activity.GetType().GetProperty("Until").SetValue(activity, 0L); }
         MyAPIGateway.Utilities.Files.Clear();
     }
     private static void TestBoundsAccess()
@@ -116,16 +116,18 @@ internal static class Program
         }
         Check(grid.Subscribers == before, "bounds: structure observers disposed");
     }
-    // Legacy behavior scenarios begin after the quiet observation interval.
-    // Keep actual shot history, persisted cooldowns and framework grace intact.
+    // Start normal observation; idle observers do not create synthetic combat.
     private static void StartObserved()
     {
         CombatLockout.Start();
-        var dictionary = (System.Collections.IDictionary)typeof(CombatLockout).GetField("grids", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
-        foreach (var activity in dictionary.Values)
-            activity.GetType().GetProperty("ObservationUntil").SetValue(activity, 0L);
     }
     public static void Main(string[] args)
+    {
+        CooldownTestStorage.Initialize();
+        try { Run(args); }
+        finally { CooldownTestStorage.Cleanup(); }
+    }
+    private static void Run(string[] args)
     {
         if (args.Length > 0 && args[0] == "--effects-only")
         {
@@ -146,7 +148,9 @@ internal static class Program
         WeaponCoreRegistrationTests.Run(Check);
         EnemyOverlapCooldownTests.Run(Check);
         CooldownRoundTripTests.Run(Check);
+        CooldownAtomicSaveTests.Run(Check);
         CombatResumeTests.Run(Check);
+        QuietReadinessTests.Run(Check);
         GridOwnershipCacheTests.Run(Check);
         OwnershipRelationTests.Run(Check);
         TestBoundsAccess();
@@ -254,14 +258,14 @@ internal static class Program
         Check(!CombatLockout.IsBlocked, "removed gun no longer polled");
 
         grid = World(); StartObserved();
-        Check(grid.Subscribers == 6, "grid events registered once");
+        Check(grid.Subscribers == 7, "grid events registered once");
         MyEntities.Remove(grid); Check(grid.Subscribers == 0, "removed grid handlers detached");
-        MyEntities.Add(grid); Check(grid.Subscribers == 6, "replicated grid can be tracked again");
+        MyEntities.Add(grid); Check(grid.Subscribers == 7, "replicated grid can be tracked again");
         health = MySession.Static.LocalCharacter.StatComp.Health;
         CombatLockout.Clear();
         Check(grid.Subscribers == 0 && health.Subscribers == 0 && MyEntities.Subscribers == 0, "session teardown detaches all handlers");
         StartObserved(); Check(CombatLockout.CanConnect(grid), "new session starts cleanly");
-        Check(grid.Subscribers == 6 && health.Subscribers == 0 && MyEntities.Subscribers == 2, "session restart does not duplicate handlers");
+        Check(grid.Subscribers == 7 && health.Subscribers == 0 && MyEntities.Subscribers == 2, "session restart does not duplicate handlers");
 
         MyAPIGateway.GridGroups.Throw = true; CombatLockout.Update();
         Check(CombatLockout.IsBlocked && !CombatLockout.CanConnect(grid), "monitor failure rejects transfer and connection");
@@ -354,7 +358,7 @@ internal static class Program
 
         grid = World(); wc = new FakeWeaponCore(); wc.RespondOnRequest();
         var coreGun = new CoreGun(); grid.Add(coreGun); wc.Add(coreGun, 0, 3);
-        StartObserved(); Check(!CombatLockout.CanConnect(grid), "new WC observation starts a quiet grace cooldown");
+        StartObserved(); Check(CombatLockout.CanConnect(grid), "idle newly identified WC weapon is immediately ready");
         ExpireObservedCombat(); CombatLockout.Update(); Check(CombatLockout.CanConnect(grid), "quiet observed WC construct becomes usable");
         wc.Event(coreGun, 3, 2, true); Check(!CombatLockout.IsBlocked, "WC tracking alone is not a combat detector");
         wc.Event(coreGun, 3, 1, true); Check(CombatLockout.IsBlocked, "sorter-based WC firing event blocks immediately");
@@ -400,7 +404,7 @@ internal static class Program
         grid = World(); wc = new FakeWeaponCore(); wc.RespondOnRequest();
         var hand = new CoreHand(); wc.Add(hand, 0); MySession.Static.LocalCharacter.CurrentWeapon = hand;
         StartObserved(); ExpireObservedCombat(); CombatLockout.Update();
-        Check(CombatLockout.CanConnect(grid), "quiet WC handheld weapon after observation grace");
+        Check(CombatLockout.CanConnect(grid), "quiet WC handheld weapon is immediately available");
         wc.Event(hand, 0, 1, true); Check(CombatLockout.IsBlocked, "WC handheld fire triggers player cooldown");
 
         grid = World(); wc = new FakeWeaponCore(); wc.RespondOnRequest(); coreGun = new CoreGun(); grid.Add(coreGun); wc.Add(coreGun, 0);
@@ -425,17 +429,17 @@ internal static class Program
         Check(!CombatLockout.CanConnect(grid), "Nexus/session transition preserves cooldown");
         MyAPIGateway.Multiplayer.ServerId++;
         CombatLockout.Update();
-        Check(!CombatLockout.CanConnect(grid) && grid.Subscribers == 6 && MyAPIGateway.Utilities.Handlers.Count == 1,
+        Check(!CombatLockout.CanConnect(grid) && grid.Subscribers == 7 && MyAPIGateway.Utilities.Handlers.Count == 1,
             "server replacement rebinds monitoring without clearing cooldown or duplicating handlers");
         MySession.Static = new MySession();
         CombatLockout.Update();
-        Check(!CombatLockout.CanConnect(grid) && grid.Subscribers == 6,
+        Check(!CombatLockout.CanConnect(grid) && grid.Subscribers == 7,
             "session replacement rebinds monitoring and retains cooldown");
         CombatLockout.Clear(); ResetTimer(); StartObserved();
         Check(!CombatLockout.CanConnect(grid), "persisted cooldown survives simulated process restart");
         Check(Deadline() <= Stopwatch.GetTimestamp() + (CombatLockout.CooldownSeconds + 1) * Stopwatch.Frequency, "restored timer clamps to conservative maximum");
         CombatLockout.Clear(); ResetTimer();
-        MyAPIGateway.Utilities.Files[CombatCooldownStore.FileName] = DateTime.UtcNow.AddMinutes(-1).Ticks.ToString();
+        MyAPIGateway.Utilities.Files[CombatCooldownStore.FileName] = "2:0";
         StartObserved(); Check(CombatLockout.CanConnect(grid), "expired persisted cooldown permits use");
         CombatLockout.Clear(); ResetTimer(); MyAPIGateway.Utilities.Files[CombatCooldownStore.FileName] = "truncated";
         StartObserved(); Check(!CombatLockout.CanConnect(grid), "corrupt deadline starts conservative cooldown");
@@ -491,7 +495,7 @@ internal static class Program
         Check(!CombatLockout.CanConnect(remote), "polling: remote single-shot history survives switching targets");
         ExpireObservedCombat(); CombatLockout.CanConnect(grid);
         var added = new CoreGun(); wc.Add(added, 7); grid.Add(added); CombatLockout.Update();
-        Check(CoreWatcherCount() == 3 && wc.ObserverCount == 3 && CombatLockout.IsBlocked, "polling: post-API block additions start weapon observation immediately");
+        Check(CoreWatcherCount() == 3 && wc.ObserverCount == 3 && !CombatLockout.IsBlocked, "polling: idle post-API weapon additions remain ready");
         ExpireObservedCombat(); wc.Event(added, 7, 8, true);
         Check(CombatLockout.IsBlocked, "polling: newly added WC weapon charging callback remains immediate");
         grid.Remove(added);
@@ -504,7 +508,7 @@ internal static class Program
         for (int i = 0; i < 20; i++) CombatLockout.Update();
         Check(CombatLockout.IsBlocked && wc.MapInstances.Count == 1, "polling: pending maps reuse scratch storage and stay fail-closed");
         wc.MapUnavailable = false; CombatLockout.Update();
-        Check(wc.ObserverCount == 1 && CombatLockout.IsBlocked, "polling: late map initialization registers observers and starts quiet grace");
+        Check(wc.ObserverCount == 1 && !CombatLockout.IsBlocked, "polling: late idle map initialization registers observers without a cooldown");
         ExpireObservedCombat();
         Check(CombatLockout.CanConnect(grid), "polling: initialized late-map weapon recovers normally");
 
@@ -576,7 +580,7 @@ internal static class Program
             wc.Add(gun, 7); wc.MapUnavailable = true; CombatLockout.Update(); ExpireObservedCombat();
             Check(!CombatLockout.CanConnect(grid), "classification: " + kind + " definition without weapon map remains unavailable");
             wc.MapUnavailable = false; CombatLockout.Update();
-            Check(wc.ObserverCount == 1 && CombatLockout.IsBlocked, "classification: " + kind + " late initialization begins observation cooldown");
+            Check(wc.ObserverCount == 1 && !CombatLockout.IsBlocked, "classification: " + kind + " idle late initialization is immediately ready");
             ExpireObservedCombat();
             Check(CombatLockout.CanConnect(grid), "classification: " + kind + " quiet initialized weapon allows linking");
             wc.Event(gun, 7, 8, true);
@@ -595,7 +599,7 @@ internal static class Program
         StartObserved();
         Check(!CombatLockout.CanConnect(rifleGrid), "classification: rifle-only definition without core remains unavailable");
         provider.Add(rifle, 0); CombatLockout.Update();
-        Check(provider.ObserverCount == 1 && CombatLockout.IsBlocked, "classification: rifle late initialization starts observation cooldown");
+        Check(provider.ObserverCount == 1 && !CombatLockout.IsBlocked, "classification: idle rifle late initialization is immediately ready");
         ExpireObservedCombat();
         Check(CombatLockout.CanConnect(rifleGrid), "classification: quiet initialized rifle allows linking");
         provider.Event(rifle, 0, 8, true);
@@ -608,7 +612,7 @@ internal static class Program
         var removedRifle = new CoreRifle { Closed = true };
         MySession.Static.LocalCharacter.CurrentWeapon = removedRifle;
         MyEntities.RemoveEntity(removedRifle); MySession.Static.LocalCharacter.CurrentWeapon = null;
-        Check(CombatLockout.IsBlocked, "classification: rifle-only physical definition remains protected after component teardown");
+        Check(!CombatLockout.IsBlocked, "classification: a closed rifle definition alone invents no recent firing evidence");
 
         foreach (var method in new[] { "GetCoreStaticLaunchers", "GetCoreTurrets", "GetCoreRifles" })
         {

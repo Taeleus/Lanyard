@@ -22,20 +22,20 @@ internal static class WeaponCoreCleanupTests
         weapon.Poll();
         var handWeapon = api.Watch(hand, null, () => activity++);
         handWeapon.Poll();
-        check(activity == 2 && provider.ObserverCount == 2, "WC cleanup: both observers initialized");
+        check(activity == 0 && provider.ObserverCount == 2, "WC cleanup: both observers initialized");
         provider.Hit(gun, 1);
         check(hits == 1, "WC cleanup: damage observer active before disposal");
         provider.ThrowCleanup = true;
         weapon.Dispose();
         provider.Event(gun, 0, 1, true);
-        check(activity == 2, "WC cleanup: failed weapon unregistration leaves an inert callback");
+        check(activity == 0, "WC cleanup: failed weapon unregistration leaves an inert callback");
         weapon.Poll();
         check(provider.ObserverCount == 2, "WC cleanup: disposed weapon cannot register again");
         var queuedMessage = MyAPIGateway.Utilities.Handlers[0];
         api.Dispose();
         provider.Event(hand, 0, 8, true);
         provider.Hit(hand, 1);
-        check(activity == 2 && hits == 1, "WC cleanup: API disposal invalidates retained weapon and damage callbacks");
+        check(activity == 0 && hits == 1, "WC cleanup: API disposal invalidates retained weapon and damage callbacks");
         check(MyAPIGateway.Utilities.Handlers.Count == 0, "WC cleanup: message observer detached despite provider failure");
         // Simulate a message queued before unregistration, delivered after teardown.
         MyAPIGateway.Utilities.Handlers.Add(queuedMessage);

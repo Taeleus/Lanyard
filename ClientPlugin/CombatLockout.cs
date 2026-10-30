@@ -26,10 +26,14 @@ internal static class CombatLockout
     private static readonly HashSet<MyCubeGrid> relevant = new HashSet<MyCubeGrid>();
     private static readonly HashSet<long> resumedGridIds = new HashSet<long>();
     private static readonly HashSet<long> resumedWeaponIds = new HashSet<long>();
+    private sealed class GridHistory { public long Until; public string Reason; }
+    private static readonly Dictionary<Tuple<Guid, long>, GridHistory> recentGridHistory = new Dictionary<Tuple<Guid, long>, GridHistory>();
     private static MyCubeGrid anchor;
     private static WeaponActivity handWeapon;
     private static bool started;
     private static CombatCooldownStore store;
+    private static bool storeLoaded;
+    private static long frozenRemaining;
     private static WeaponCoreMonitor weaponCore;
     private static NonDamageEffectMonitor effects;
     private static WeaponCoreMonitor.Weapon coreHandWeapon;
@@ -47,6 +51,11 @@ internal static class CombatLockout
         (weaponCore != null && (weaponCore.Failed || (weaponCore.Required && !weaponCore.Ready)));
 
     public static bool IsBlocked => Unavailable || cooldown.IsBlocked(Stopwatch.GetTimestamp());
+
+    // A negative value means availability depends on an ongoing condition, not
+    // merely on the timer. Presentation must never promise a timed resume then.
+    public static int RemainingSeconds => Unavailable ? -1 : (int)Math.Max(0,
+        Math.Ceiling((double)(cooldown.Deadline - Stopwatch.GetTimestamp()) / Stopwatch.Frequency));
 
     public static string BlockReason
     {
@@ -122,6 +131,39 @@ internal static class CombatLockout
         if (id != 0 && ids.Count < CombatResumeState.MaxIds) ids.Add(id);
     }
 
+    private static void RememberGridHistory(MyCubeGrid grid, long deadline, string reason)
+    {
+        var now = Stopwatch.GetTimestamp();
+        if (grid == null || MySession.Static == null || deadline <= now) return;
+        var key = Tuple.Create(MySession.Static.WorldId, grid.EntityId);
+        if (!recentGridHistory.TryGetValue(key, out var history))
+        {
+            if (recentGridHistory.Count >= CombatResumeState.MaxIds)
+            {
+                var expired = new List<Tuple<Guid, long>>();
+                foreach (var entry in recentGridHistory) if (entry.Value.Until <= now) expired.Add(entry.Key);
+                foreach (var entry in expired) recentGridHistory.Remove(entry);
+                if (recentGridHistory.Count >= CombatResumeState.MaxIds)
+                {
+                    Fail(new InvalidOperationException("Recent grid activity history capacity exceeded."));
+                    return;
+                }
+            }
+            recentGridHistory.Add(key, history = new GridHistory());
+        }
+        if (deadline > history.Until) { history.Until = deadline; history.Reason = reason; }
+    }
+
+    private static GridHistory GetGridHistory(MyCubeGrid grid)
+    {
+        if (grid == null || MySession.Static == null) return null;
+        var key = Tuple.Create(MySession.Static.WorldId, grid.EntityId);
+        if (!recentGridHistory.TryGetValue(key, out var history)) return null;
+        if (history.Until > Stopwatch.GetTimestamp()) return history;
+        recentGridHistory.Remove(key);
+        return null;
+    }
+
     private static void LoadResumeIds(HashSet<long> destination, long[] ids)
     {
         if (ids == null || ids.Length > CombatResumeState.MaxIds) return;
@@ -144,7 +186,11 @@ internal static class CombatLockout
         try
         {
             store = new CombatCooldownStore();
-            IncludeDeadline(store.Load(), "Restored cooldown; original cause unavailable");
+            var restored = store.Load();
+            storeLoaded = true;
+            if (frozenRemaining > 0) restored = Math.Max(restored, Stopwatch.GetTimestamp() + frozenRemaining);
+            IncludeDeadline(restored, "Restored cooldown; original cause unavailable");
+            if (!failed) frozenRemaining = 0;
             bool expectWeaponCore = false;
             bool expectVanillaPlus = false;
             if (MySession.Static?.Mods != null)
@@ -171,8 +217,19 @@ internal static class CombatLockout
 
     public static void Clear()
     {
-        try { store?.Save(cooldown.Deadline, true); }
-        catch (Exception exception) { Fail(exception); }
+        if (storeLoaded && store != null)
+        {
+            var now = Stopwatch.GetTimestamp();
+            var deadline = Math.Max(cooldown.Deadline, frozenRemaining > 0 ? now + frozenRemaining : 0);
+            try { store.Save(deadline, true); frozenRemaining = 0; }
+            catch (Exception exception)
+            {
+                // A stale shorter disk record cannot refund active combat after
+                // an in-process handoff. Retain the frozen remainder for retry.
+                frozenRemaining = Math.Max(frozenRemaining, Math.Max(0, deadline - now));
+                Fail(exception);
+            }
+        }
         started = false;
         MyEntities.OnEntityAdd -= EntityAdded;
         MyEntities.OnEntityRemove -= EntityRemoved;
@@ -186,14 +243,16 @@ internal static class CombatLockout
         weaponCore?.Dispose();
         weaponCore = null;
         store = null;
+        storeLoaded = false;
         handWeapon = null;
         anchor = null;
         group.Clear();
         relevant.Clear();
         resumedGridIds.Clear();
         resumedWeaponIds.Clear();
-        // Do not clear the timer when unloading: Nexus transfers/reconnects
-        // must not provide a way to discard recent combat activity.
+        // The stored remainder is authoritative between sessions. Keeping the
+        // old live deadline here would spend offline time or shadow a reload.
+        cooldown.Clear();
         groupUnavailable = false;
         started = false;
         failed = false;
@@ -241,6 +300,7 @@ internal static class CombatLockout
             coreHandWeapon?.Poll();
             foreach (var activity in grids.Values) activity.PollWeapons();
             RefreshGroup();
+            store?.Save(cooldown.Deadline);
         }
         catch (Exception exception) { Fail(exception); }
     }
@@ -284,7 +344,6 @@ internal static class CombatLockout
             {
                 activity.PollWeapons();
                 IncludeDeadline(activity.Until, activity.Reason);
-                IncludeDeadline(activity.ObservationUntil, activity.ObservationReason);
             }
     }
 
@@ -307,7 +366,6 @@ internal static class CombatLockout
             if (grids.TryGetValue(grid, out var activity))
             {
                 IncludeDeadline(activity.Until, activity.Reason);
-                IncludeDeadline(activity.ObservationUntil, activity.ObservationReason);
                 if (activity.Uncertain)
                 {
                     groupUnavailable = true;
@@ -396,9 +454,8 @@ internal static class CombatLockout
         {
             try
             {
-                // WC rifles may fire without updating vanilla LastShootTime.
-                // Even a complete equip/fire/holster between our updates must
-                // start their normal conservative observation cooldown.
+                // Final-poll a live WC rifle; merely seeing/holstering an idle
+                // weapon does not establish recent combat.
                 var observed = ReferenceEquals(entity, coreHandEntity) ? coreHandWeapon : null;
                 observed?.Poll();
                 if (observed?.IsObserved != true)
@@ -417,9 +474,27 @@ internal static class CombatLockout
             catch (Exception exception) { Fail(exception); }
         }
         if (!(entity is MyCubeGrid grid) || !grids.TryGetValue(grid, out var activity)) return;
-        activity.Dispose();
-        grids.Remove(grid);
-        relevant.Remove(grid);
+        // Native merge removes a closing source before moving its still-live
+        // blocks. Sample established observers before their baselines disappear.
+        // Record() can refresh membership and exclude the closing source, so
+        // retain the construct membership of the interval being final-polled.
+        var wasRelevant = relevant.Contains(grid);
+        try
+        {
+            activity.PollWeapons(true);
+            if (wasRelevant)
+            {
+                IncludeDeadline(activity.Until, activity.Reason);
+                if (activity.Uncertain) Fail(new InvalidOperationException("Final weapon state unavailable on removed linked grid."));
+            }
+        }
+        catch (Exception exception) { Fail(exception); }
+        finally
+        {
+            activity.Dispose();
+            grids.Remove(grid);
+            relevant.Remove(grid);
+        }
     }
 
     private static void ConnectionsChanged(MyCubeGrid changed, GridLinkTypeEnum type)
@@ -472,9 +547,7 @@ internal static class CombatLockout
             }
         }
         public string Reason { get; private set; }
-        public string ObservationReason { get; private set; }
         public long Until { get; private set; }
-        public long ObservationUntil { get; private set; }
         public bool WasResumed { get; }
         public readonly HashSet<MySlimBlock> OwnDismantled = new HashSet<MySlimBlock>();
 
@@ -482,14 +555,8 @@ internal static class CombatLockout
         {
             this.grid = grid;
             WasResumed = resumedGridIds.Remove(grid.EntityId);
-            // Replication/reconnects and splits do not carry past damage
-            // events. Require a full observed quiet interval before trusting
-            // any newly observed grid. This remains private until selection.
-            if (!WasResumed)
-            {
-                ObservationUntil = Stopwatch.GetTimestamp() + CooldownSeconds * Stopwatch.Frequency;
-                ObservationReason = "New grid observation; " + DescribeGrid(grid);
-            }
+            var previous = GetGridHistory(grid);
+            if (previous != null) { Until = previous.Until; Reason = previous.Reason; }
             try
             {
                 grid.OnGridBlockDamaged += Damaged;
@@ -499,6 +566,7 @@ internal static class CombatLockout
                 grid.OnFatBlockAdded += Added;
                 grid.OnFatBlockRemoved += FatRemoved;
                 grid.OnGridMerge += Merged;
+                grid.OnGridSplit += Split;
                 grid.OnConnectionChangeCompleted += ConnectionsChanged;
                 foreach (var block in grid.GetFatBlocks()) Added(block);
             }
@@ -522,6 +590,7 @@ internal static class CombatLockout
         {
             if (deadline <= 0) return;
             if (deadline > Until) { Until = deadline; Reason = reason ?? "Grid activity; " + DescribeGrid(grid); }
+            RememberGridHistory(grid, Until, Reason);
             // A validated construct can replicate before its selected container.
             // Preserve its new activity even while restoration has no anchor.
             if (WasResumed && anchor == null) IncludeDeadline(Until, Reason);
@@ -541,11 +610,25 @@ internal static class CombatLockout
         private void Merged(MyCubeGrid survivor, MyCubeGrid removed)
         {
             if (survivor != grid) return;
-            // The source can be disposed before this event. Restart the quiet
-            // observation interval instead of losing its unselected history.
-            ObservationUntil = Stopwatch.GetTimestamp() + CooldownSeconds * Stopwatch.Frequency;
-            ObservationReason = "Grid merge observation; " + DescribeGrid(grid);
+            // Native merge closes/removes the source before this event. Preserve
+            // its recorded activity, while quiet merges remain immediately ready.
+            var history = GetGridHistory(removed);
+            if (history != null) Record(history.Until, history.Reason, false);
             try { RefreshGroup(); }
+            catch (Exception exception) { Fail(exception); }
+        }
+
+        private void Split(MyCubeGrid original, MyCubeGrid fragment)
+        {
+            if (original != grid || fragment == null) return;
+            try
+            {
+                PollWeapons();
+                RememberGridHistory(fragment, Until, Reason);
+                if (!grids.TryGetValue(fragment, out var activity)) EntityAdded(fragment);
+                if (grids.TryGetValue(fragment, out activity) && Until > 0) activity.Record(Until, Reason, false);
+                RefreshGroup();
+            }
             catch (Exception exception) { Fail(exception); }
         }
 
@@ -633,10 +716,10 @@ internal static class CombatLockout
             }
         }
 
-        public void PollWeapons()
+        public void PollWeapons(bool removingGrid = false)
         {
-            if (grid.Closed || grid.MarkedForClose) return;
-            if (weaponCore.Ready && !coreDiscovered)
+            if (!removingGrid && (grid.Closed || grid.MarkedForClose)) return;
+            if (!removingGrid && weaponCore.Ready && !coreDiscovered)
             {
                 // One discovery pass when the optional API becomes ready.
                 // Later blocks are classified by Added, never by a world scan.
@@ -661,6 +744,7 @@ internal static class CombatLockout
             grid.OnFatBlockAdded -= Added;
             grid.OnFatBlockRemoved -= FatRemoved;
             grid.OnGridMerge -= Merged;
+            grid.OnGridSplit -= Split;
             grid.OnConnectionChangeCompleted -= ConnectionsChanged;
             weapons.Clear();
             foreach (var weapon in coreWeapons.Values) weapon.Dispose();

@@ -1,61 +1,58 @@
 # Lanyard
 
-Lanyard connects your character's tools to one selected inventory port, helping you build, grind and drill without carrying every material yourself.
+Lanyard links your tools to one inventory port, helping you build, grind and drill without carrying every material yourself.
 
-**Lanyard v0.2.1** is a Space Engineers 1 client plugin for **Pulsar Legacy**. No server mod is required.
+**Lanyard v0.3.4** is a Space Engineers 1 client plugin for **Pulsar Legacy**. No server mod is required.
 
 ## Start here
 
-1. Enable **Lanyard** in Pulsar and restart the game.
-2. Equip a welder, grinder or drill and aim at the inventory access port you want to use.
-3. Type `/ly` to connect.
-4. Open **K → Lanyard** for status and connection controls, or type `/ly menu` to open the standalone panel. Use `/ly bounds` to see your working area.
-
-The link stays attached to the selected block. Losing that block or access to it disconnects the link.
-
-Lanyard remembers your connection when you reconnect or move between servers. It waits for the same container and access port to become available, checks your access and range again, then restores the link. Your cooldown keeps its original expiry while you are offline. Automatic recovery requires the transfer to preserve your player identity and the container's identity.
+1. Once installed, enable **Lanyard** in Pulsar Legacy and restart the game.
+2. Equip a welder, grinder or drill and aim at the inventory port you want to use.
+3. Type `/ly` to link.
+4. Open **K → Lanyard** or `/ly menu` for status, controls and preferences.
 
 ## What it does
 
-- **Welder:** withdraws components listed in your build planner.
+- **Welder:** supplies components listed in your build planner while you hold the welder.
 - **Grinder:** returns ore, ingots and components to the linked inventory while you use the grinder.
-- **Drill:** returns ore to the linked inventory while equipped.
-- **Block placement:** requests one starting component if you try to place a block without it. Place again after it arrives.
+- **Drill:** returns ore while equipped, with an option to return it only while drilling.
+- **Block placement:** requests one starting component when you try to place a block without it. Place again after it arrives.
 
-Deposits go to the inventory you selected. Withdrawals use the normal accessible conveyor network through that port; Lanyard does not grant access to locked cargo. You still aim, place blocks and use your tools yourself.
+Returned materials go to your selected inventory. Supplies come from storage normally accessible through that port. You still aim, place blocks and operate your tools yourself.
 
 ## Commands
 
-Every command also works with `/lanyard` in place of `/ly`. Commands are case-insensitive.
+Use `/lanyard` instead of `/ly` for any command. Commands are case-insensitive.
 
 | Command | Action |
 | --- | --- |
 | `/ly` | Link to the targeted inventory port. |
-| `/ly menu` | Open status and connection controls. |
-| `/ly off` | Disconnect. |
-| `/ly bounds` | Toggle the working-area preview. |
+| `/ly menu` | Open the controls. |
+| `/ly off` | Disconnect and forget the saved link. |
+| `/ly pause` | Pause transfers and keep your link. |
+| `/ly resume` | Allow transfers when safety checks permit. |
+| `/ly bounds` | Preview the aimed grid, or hide the current preview. |
+| `/ly bounds linked` | Toggle the linked grid's preview. |
 | `/ly bounds off` | Hide the preview. |
 
-## Bounds, access and combat
+## Working area and safety
 
-Use a personally owned inventory or one explicitly faction-shared by a faction member. Unowned, enemy and Share All-only ports do not qualify.
+Use your own inventory or one explicitly faction-shared by a faction member. Unowned inventories and Share All-only access do not qualify.
 
-Work inside the selected container's grid bounds. Transfers pause outside, and the link breaks more than **100 m** beyond those bounds. Separate subgrids do not enlarge the working area. Losing access to the selected inventory also breaks the link.
+Transfers run inside the selected container's grid bounds. They pause outside, and the link disconnects more than **100 m** beyond those bounds. Attached subgrids do not enlarge the working area. Losing the selected block or access to it also disconnects.
 
-Combat or enemy overlap **pauses transfers while keeping your selected inventory linked**. Lanyard resumes automatically once **two minutes have passed since the latest detection**, provided you are back inside the working area and still have access. New combat activity or continued enemy overlap extends the pause.
+Combat or hostile grid overlap **pauses transfers while keeping your link**. Transfers can resume after **two minutes of connected time without a new detection**, while you are inside the working area with access. New activity or continued hostile overlap extends the pause. Time away preserves the remaining cooldown; reconnecting or unlinking does not clear it.
 
-Combat detection includes ship damage, weapon fire and supported EMP or jump-inhibition effects. Friendly deconstruction is supported. The connection panel shows when the link is paused; detailed reasons appear in the game log.
+Saved links wait for the same player, container and port after reconnecting, then check access and range again. Re-link manually if a server transfer replaces the saved player or container.
 
-## Compatibility
+## Make it yours
 
-Vanilla weapons are supported, with optional WeaponCore and Vanilla+ integration when present. Combat checks use information available to your client and are not server-enforced anti-cheat.
+The menu shows connection state, cooldown, planner availability and transfer feedback. Full-backpack and full-container warnings remain visible while the condition persists. Tool preferences let you enable each automatic function separately.
 
-## Local development and testing
+The HUD starts **Off**. Choose **With tools**, **Only when paused** or **Always during gameplay**, then select a corner or open **Customize HUD…**. Drag the preview and adjust size and opacity. **Save appearance** keeps your edits; **Cancel** or Escape discards them. The HUD follows the game's HUD visibility.
 
-See [development and release preparation](RELEASING.md) for build and local installation instructions, including `Deploy-LocalDev.ps1`. Restart the game after replacing a loaded build.
+Assign Ctrl/Alt key combinations or function keys for linking, opening the menu, pausing and showing bounds. Shortcuts start unassigned and run during gameplay. Choose unused combinations; chat and menus keep their normal controls.
 
-See [version history](CHANGELOG.md) for changes between releases.
+Preferences save locally across reconnects and restarts. **Reset all settings** restores tool choices, HUD appearance, manual pause and shortcuts while keeping your connection and combat cooldown.
 
-## License
-
-[MIT](LICENSE), copyright 2026 Taeleus. The required [client-plugin-template MIT notice](LICENSES/client-plugin-template.MIT.txt) is retained with the source.
+See [version history](CHANGELOG.md), [source build instructions](RELEASING.md) and the [MIT license](LICENSE). Copyright 2026 Taeleus; the [template license notice](LICENSES/client-plugin-template.MIT.txt) is retained with the source.

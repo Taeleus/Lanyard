@@ -17,13 +17,22 @@ namespace Sandbox.Game
     public static class MyVisualScriptLogicProvider
     {
         public static bool ThrowHighlightOnce;
+        public static Action Highlighted;
         public static void SetHighlightLocal(string name, int thickness, int pulse, VRageMath.Color color, long player, object ignored)
         {
             if (ThrowHighlightOnce) { ThrowHighlightOnce = false; throw new InvalidOperationException("Renderer is not ready."); }
+            if (thickness == 2) Highlighted?.Invoke();
         }
     }
 }
-namespace Sandbox.Game.Entities.Inventory { internal class NamespaceMarker { } }
+namespace Sandbox.Game.Entities.Inventory
+{
+    public static class MyInventoryBaseExtensions
+    {
+        public static Sandbox.Game.Entities.MyInventory GetInventory(this MyEntity entity, MyStringHash id) =>
+            (entity as MyCharacter)?.GetInventory();
+    }
+}
 
 namespace VRageMath
 {
@@ -153,12 +162,21 @@ namespace Sandbox.Game.Entities
         public bool AcceptsItem = true;
         public double Capacity = double.MaxValue;
         public Action CapacityCheck;
-        public int Reads;
+        public bool ThrowAmount;
+        public Action AmountRead;
+        public int Reads, AmountReads, ConstraintChecks, CapacityChecks;
         public IEnumerable<MyPhysicalInventoryItem> GetItems() { Reads++; return Items; }
         public void Add(string type, string subtype, double amount = 1) => Items.Add(new MyPhysicalInventoryItem(new MyDefinitionId(type, subtype), amount));
-        public double GetItemAmount(MyDefinitionId item) => Items.FindAll(value => value.Content.GetObjectId().Equals(item)).ConvertAll(value => value.Amount).Sum();
-        public bool CheckConstraint(MyDefinitionId item) => AcceptsItem;
-        public double ComputeAmountThatFits(MyDefinitionId item) { CapacityCheck?.Invoke(); return Capacity; }
+        public double GetItemAmount(MyDefinitionId item)
+        {
+            AmountReads++;
+            if (ThrowAmount) throw new InvalidOperationException("Inventory snapshot unavailable.");
+            var amount = Items.FindAll(value => value.Content.GetObjectId().Equals(item)).ConvertAll(value => value.Amount).Sum();
+            AmountRead?.Invoke();
+            return amount;
+        }
+        public bool CheckConstraint(MyDefinitionId item) { ConstraintChecks++; return AcceptsItem; }
+        public double ComputeAmountThatFits(MyDefinitionId item) { CapacityChecks++; CapacityCheck?.Invoke(); return Capacity; }
 
         public static void TransferByPlanner(MyInventory source, MyInventory destination, MyDefinitionId item, MyItemFlags flags, double amount, bool spawn = false)
         {
@@ -219,8 +237,8 @@ namespace Sandbox.Game.Entities
 namespace Sandbox.Game.Weapons
 {
     public class MyAngleGrinder : MyEntity { public bool IsShooting; }
-    public sealed class MyWelder : MyEntity { }
-    public sealed class MyHandDrill : MyEntity { }
+    public class MyWelder : MyEntity { }
+    public sealed class MyHandDrill : MyEntity { public bool IsShooting; }
 }
 
 namespace Sandbox.Game.Entities.Character
@@ -231,16 +249,24 @@ namespace Sandbox.Game.Entities.Character
         public MyEntity EquippedTool;
         public HandItemDefinition HandItemDefinition;
         public bool IsDead;
-        public readonly List<object> BuildPlanner = new List<object>();
+        public readonly List<Sandbox.Game.World.MyIdentity.BuildPlanItem> BuildPlanner = new List<Sandbox.Game.World.MyIdentity.BuildPlanItem>();
         public readonly MyInventory Inventory = new MyInventory();
         public int InventoryLookups;
-        public MyInventory GetInventory(MyStringHash id) { InventoryLookups++; return Inventory; }
+        public MyInventory GetInventory(int index = 0) { InventoryLookups++; return Inventory; }
     }
 }
 
 namespace Sandbox.Game.World
 {
-    public sealed class MyIdentity { public long IdentityId = 1; }
+    public sealed class MyIdentity
+    {
+        public long IdentityId = 1;
+        public sealed class BuildPlanItem
+        {
+            public sealed class Component { public Sandbox.Definitions.MyComponentDefinition ComponentDefinition; public int Count; }
+            public List<Component> Components = new List<Component>();
+        }
+    }
     public sealed class MyPlayerId { public ulong SteamId = 42; }
     public sealed class MyPlayer { public readonly MyIdentity Identity = new MyIdentity(); public readonly MyPlayerId Id = new MyPlayerId(); }
     public sealed class MySession
@@ -272,7 +298,8 @@ namespace Sandbox.ModAPI
     public sealed class Utilities
     {
         public readonly List<string> Messages = new List<string>();
-        public void ShowNotification(string message, int duration, string font) { Messages.Add(message); }
+        public bool ThrowNotification;
+        public void ShowNotification(string message, int duration, string font) { if (ThrowNotification) throw new InvalidOperationException("HUD unavailable."); Messages.Add(message); }
     }
     public static class MyAPIGateway
     {
@@ -295,19 +322,24 @@ namespace Lanyard
     internal static class BoundsPreview
     {
         public static int Connections, Disconnections;
+        public static Action Disconnected;
         public static void LinkConnected() { Connections++; }
-        public static void LinkDisconnected() { Disconnections++; }
+        public static void LinkDisconnected() { Disconnections++; Disconnected?.Invoke(); }
         public static void Clear() { }
         public static void Draw() { }
         public static void Toggle() { }
+        public static void ToggleLinked() { }
+        public static void Update() { }
     }
 
     internal static class CombatLockout
     {
         public static bool IsBlocked;
+        public static int RemainingSeconds;
         public static int Updates, Reports, EnemyOverlapObservations;
         public static MyCubeGrid FollowedGrid;
         public static Action<MyCubeGrid> Following;
+        public static Action<MyCubeGrid> Connecting;
         public static Action Updating;
         public static int Starts, Clears;
         public static CombatResumeState StartedResume;
@@ -315,7 +347,7 @@ namespace Lanyard
         public static void Start(CombatResumeState resume = null) { Starts++; StartedResume = resume; }
         public static void Clear() { Clears++; }
         public static CombatResumeState CaptureResumeState() => ResumeToCapture;
-        public static bool CanConnect(MyCubeGrid grid) => !IsBlocked;
+        public static bool CanConnect(MyCubeGrid grid) { FollowGrid(grid); Connecting?.Invoke(grid); return !IsBlocked; }
         public static void FollowGrid(MyCubeGrid grid) { FollowedGrid = grid; Following?.Invoke(grid); }
         public static void Update() { Updates++; Updating?.Invoke(); }
         public static void ReportBlocked() { Reports++; }
@@ -344,7 +376,8 @@ namespace Lanyard
     internal static class LanyardDiagnostics
     {
         public static readonly List<string> Messages = new List<string>();
-        public static void Show(string message) { Messages.Add(message); }
+        public static Action<string> Showing;
+        public static void Show(string message) { Showing?.Invoke(message); Messages.Add(message); }
     }
 
     internal static class Reflections { public static MethodInfo Withdraw; public static MethodInfo PlacementSources; public static void Initialize() { } }

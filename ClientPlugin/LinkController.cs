@@ -20,16 +20,70 @@ namespace Lanyard;
 
 public static class LinkController
 {
+    static LinkController() { LanyardPreferences.Changed += PreferencesChanged; }
+
+    private static void PreferencesChanged()
+    {
+        pendingPlacement.Clear();
+        ClearGrinder();
+        TransferFeedback.ClearTransient();
+        PlannerAvailability.Clear();
+        ticks = 0;
+        NotifyStateChanged();
+    }
     public static event Action StateChanged;
     private static bool previouslyBlocked;
     private static bool combatPaused;
     internal static bool IsCombatPaused => combatPaused;
+    public static bool HasConnection => GetTargetedBlock.selectedBlock != null || LinkRecovery.IsPending;
+    public static bool IsPaused => HasConnection && (LinkRecovery.IsPending || combatPaused || CombatLockout.IsBlocked || outOfRange || LanyardPreferences.Current.ManualPaused);
+    public static string StateText
+    {
+        get
+        {
+            if (GetTargetedBlock.selectedBlock == null)
+                return (LinkRecovery.IsPending ? "Waiting for saved container" : "Not linked") +
+                    (CombatLockout.IsBlocked ? "; " + SafetyState : "");
+            if (combatPaused || CombatLockout.IsBlocked)
+                return SafetyState;
+            if (outOfRange) return "Paused — outside working area";
+            return LanyardPreferences.Current.ManualPaused ? "Paused by you" : "Active";
+        }
+    }
+    private static string SafetyState
+    {
+        get
+        {
+            var seconds = CombatLockout.RemainingSeconds;
+            return seconds > 0 ? "Cooldown — " + seconds / 60 + ":" + (seconds % 60).ToString("00") : "Paused — waiting for safety checks";
+        }
+    }
     public static string StatusText => GetTargetedBlock.selectedBlock == null
-        ? LinkRecovery.IsPending ? "Link saved. Waiting for its matching player and inventory port."
-            : CombatLockout.IsBlocked ? "Not linked. Lanyard unavailable." : "Not linked. Aim at an inventory port with a tool to connect."
-        : "Linked to " + GetTargetedBlock.selectedBlock.CustomName +
-          (combatPaused || CombatLockout.IsBlocked ? ". Paused: waiting for a quiet working area."
-              : outOfRange ? ". Paused: outside the working area." : ". Inside the working area.");
+        ? (LinkRecovery.IsPending ? "Link saved. Waiting for its matching player and inventory port."
+            : "Not linked. Aim at an inventory port with a tool to connect.") + (CombatLockout.IsBlocked ? "\n" + SafetyState + "." : "")
+        : "Linked to " + DisplayName(GetTargetedBlock.selectedBlock.CustomName) + "\n" + StateText + ".";
+
+    internal static string DisplayName(string value, int limit = 52)
+    {
+        value = (value ?? "Inventory").Replace('\r', ' ').Replace('\n', ' ').Replace('\t', ' ');
+        return value.Length > limit ? value.Substring(0, limit - 1) + "…" : value;
+    }
+
+    public static void ToggleUserPause() => SetUserPaused(!LanyardPreferences.Current.ManualPaused);
+
+    public static void SetUserPaused(bool paused)
+    {
+        if (LanyardPreferences.Current.ManualPaused == paused) return;
+        LanyardPreferences.Change(settings => settings.ManualPaused = paused);
+        pendingPlacement.Clear();
+        ClearGrinder();
+        TransferFeedback.ClearTransient();
+        PlannerAvailability.Clear();
+        ticks = 0;
+        NotifyStateChanged();
+        MyAPIGateway.Utilities?.ShowNotification(paused ? HasConnection ? "Lanyard paused by you. Link retained." : "Lanyard automatic transfers paused."
+            : "Lanyard automatic transfers enabled. Safety checks still apply.", 4000, "White");
+    }
 
     private static void NotifyStateChanged()
     {
@@ -75,6 +129,8 @@ public static class LinkController
     {
         pendingPlacement.Clear();
         ClearGrinder();
+        TransferFeedback.Clear();
+        PlannerAvailability.Clear();
         BoundsPreview.LinkConnected();
         linkedCharacter = MySession.Static?.LocalCharacter;
         ticks = 0;
@@ -92,6 +148,8 @@ public static class LinkController
     {
         pendingPlacement.Clear();
         ClearGrinder();
+        TransferFeedback.Clear();
+        PlannerAvailability.Clear();
         BoundsPreview.LinkConnected();
         linkedCharacter = MySession.Static.LocalCharacter;
         ticks = 0;
@@ -114,6 +172,8 @@ public static class LinkController
     {
         pendingPlacement.Clear();
         ClearGrinder();
+        TransferFeedback.Clear();
+        PlannerAvailability.Clear();
         var changed = GetTargetedBlock.selectedBlock != null;
         if (GetTargetedBlock.selectedBlock != null) BoundsPreview.LinkDisconnected();
         LinkArea.ClearCache();
@@ -135,12 +195,14 @@ public static class LinkController
             pendingPlacement.Clear();
             ClearGrinder();
             ticks = 0;
+            TransferFeedback.ClearTransient();
+            PlannerAvailability.Clear();
         }
         LinkRecovery.RememberPause();
         NotifyStateChanged();
         MyAPIGateway.Utilities?.ShowNotification(paused
             ? "Lanyard paused. Link retained."
-            : outOfRange ? "Lanyard is clear; transfers remain paused outside bounds." : "Lanyard resumed.", 4000, "White");
+            : outOfRange || LanyardPreferences.Current.ManualPaused ? "Lanyard is clear; transfers remain paused." : "Lanyard resumed.", 4000, "White");
     }
 
     private static void ClearGrinder()
@@ -154,6 +216,11 @@ public static class LinkController
 
     private static bool ObserveGrinder(bool scheduleImmediateDeposit = true)
     {
+        if (!LanyardPreferences.Current.GrinderReturns || LanyardPreferences.Current.ManualPaused)
+        {
+            ClearGrinder();
+            return false;
+        }
         var session = MySession.Static;
         var character = session?.LocalCharacter;
         var grinder = character?.EquippedTool as MyAngleGrinder;
@@ -243,17 +310,27 @@ public static class LinkController
         return true;
     }
 
+    internal static bool ValidateExistingSelection() => ValidateLink();
+
+    // Read-only previews use the same live context and safety guards as work.
+    internal static bool CanInspectInventoryState()
+    {
+        CombatLockout.Update();
+        return CanTransfer() && CheckEnemies();
+    }
+
     private static bool CanTransfer()
     {
         if (!ValidateLink()) return false;
         // A clear timer alone is insufficient if an overlap is still present.
         if (combatPaused && !CombatLockout.IsBlocked && !CheckEnemies()) return false;
         SetCombatPaused(CombatLockout.IsBlocked);
-        return !combatPaused && !outOfRange;
+        return !combatPaused && !outOfRange && !LanyardPreferences.Current.ManualPaused;
     }
 
     public static void Update()
     {
+        TransferFeedback.UpdateCapacity();
         try
         {
             if (!LinkRecovery.Update()) return;
@@ -284,6 +361,7 @@ public static class LinkController
         }
         // Validate every update, even while waiting between transfer batches.
         if (!CanTransfer()) return;
+        TransferFeedback.Update();
         var regularTransferDue = ++ticks >= 51;
         if (regularTransferDue) ticks = 0;
         try
@@ -302,22 +380,35 @@ public static class LinkController
             if (!CheckEnemies()) return;
             enemyCheckTicks = 0;
             var character = MySession.Static.LocalCharacter;
-            var tool = character.HandItemDefinition?.Id.SubtypeName;
-            if (string.IsNullOrEmpty(tool)) return;
-            if (tool.IndexOf("Welder", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (character.EquippedTool is MyWelder activeTool)
             {
+                if (activeTool.Closed || activeTool.MarkedForClose || !LanyardPreferences.Current.WelderSupply) return;
                 if (character.BuildPlanner.Count == 0 || !CanTransfer()) return;
                 if (Reflections.Withdraw == null)
                 {
                     Disconnect("Lanyard unavailable: game withdrawal method not found.");
                     return;
                 }
+                var activeBlock = GetTargetedBlock.selectedBlock;
+                var activePort = GetTargetedBlock.selectedObject;
+                var supplyIssue = PlannerAvailability.SupplyIssue;
+                TransferFeedback.WatchPlanner(character.GetInventory(CharacterInventoryId) as MyInventory);
+                if (!CanTransfer() || !LanyardPreferences.Current.WelderSupply || activeTool == null || activeTool.Closed || activeTool.MarkedForClose ||
+                    !ReferenceEquals(character, MySession.Static?.LocalCharacter) || !ReferenceEquals(activeTool, character.EquippedTool) ||
+                    !ReferenceEquals(activeBlock, GetTargetedBlock.selectedBlock) || !ReferenceEquals(activePort, GetTargetedBlock.selectedObject))
+                { TransferFeedback.ClearTransient(); return; }
                 Reflections.Withdraw.Invoke(null, new object[] {
                     (MyEntity)GetTargetedBlock.selectedObject.Owner,
                     character.GetInventory(CharacterInventoryId), null });
+                TransferFeedback.Update();
+                if (!string.IsNullOrEmpty(supplyIssue)) TransferFeedback.Report(supplyIssue);
             }
-            else if (tool.IndexOf("Drill", StringComparison.OrdinalIgnoreCase) >= 0)
+            else if (character.HandItemDefinition?.Id.SubtypeName is string tool && tool.IndexOf("Drill", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                if (!LanyardPreferences.Current.DrillReturns || (LanyardPreferences.Current.DrillActiveOnly &&
+                    !(character.EquippedTool is MyHandDrill drill && drill.IsShooting))) return;
                 Deposit(true);
+            }
         }
         catch (Exception exception)
         {
@@ -328,6 +419,11 @@ public static class LinkController
 
     public static void RequestPlacementComponent(MyCubeBlockDefinition definition, bool canStart)
     {
+        if (!LanyardPreferences.Current.StartingComponents)
+        {
+            pendingPlacement.Clear();
+            return;
+        }
         if (definition?.Components == null || definition.Components.Length == 0 || definition.Components[0].Definition == null) return;
         var id = definition.Components[0].Definition.Id;
         if (canStart)
@@ -352,7 +448,13 @@ public static class LinkController
                 return;
             }
             if (pendingPlacement.TryGetValue(id, out var deadline) && Stopwatch.GetTimestamp() < deadline) return;
-            if (Reflections.PlacementSources == null || !destination.CheckConstraint(id) || destination.ComputeAmountThatFits(id) < 1) return;
+            if (Reflections.PlacementSources == null)
+            {
+                TransferFeedback.Report("Starting-component supply unavailable.");
+                return;
+            }
+            if (!destination.CheckConstraint(id)) { TransferFeedback.Report("Backpack does not accept this component."); return; }
+            if (destination.ComputeAmountThatFits(id) < 1) { TransferFeedback.WatchCapacity(destination, id, true); return; }
 
             var sources = new List<MyInventory>();
             Reflections.PlacementSources.Invoke(null, new object[] { destination.Owner, id, sources, (MyEntity)port.Owner, true });
@@ -364,21 +466,29 @@ public static class LinkController
                 CombatLockout.Update();
                 if (!ReferenceEquals(character, MySession.Static?.LocalCharacter) ||
                     !ReferenceEquals(block, GetTargetedBlock.selectedBlock) || !ReferenceEquals(port, GetTargetedBlock.selectedObject) ||
-                    !CanTransfer() || !CheckEnemies()) return;
+                    !CanTransfer() || !CheckEnemies() || !LanyardPreferences.Current.StartingComponents) return;
                 if (!ReferenceEquals(destination, character.GetInventory(CharacterInventoryId))) return;
                 if (destination.GetItemAmount(id) >= 1)
                 {
                     pendingPlacement.Remove(id);
                     return;
                 }
-                if (!destination.CheckConstraint(id) || destination.ComputeAmountThatFits(id) < 1) return;
+                if (!destination.CheckConstraint(id)) return;
+                if (destination.ComputeAmountThatFits(id) < 1) { TransferFeedback.WatchCapacity(destination, id, true); return; }
                 if (pendingPlacement.TryGetValue(id, out deadline) && Stopwatch.GetTimestamp() < deadline) return;
                 // Reserve before sending: hosting may complete the transfer synchronously.
                 // Expiry permits a retry; it is not a server acknowledgement.
                 pendingPlacement[id] = Stopwatch.GetTimestamp() + Stopwatch.Frequency * 3;
+                TransferFeedback.WatchArrival(destination, id, definition.Components[0].Definition.DisplayNameText ?? id.SubtypeName, true);
+                if (!ReferenceEquals(character, MySession.Static?.LocalCharacter) ||
+                    !ReferenceEquals(block, GetTargetedBlock.selectedBlock) || !ReferenceEquals(port, GetTargetedBlock.selectedObject) ||
+                    !CanTransfer() || !LanyardPreferences.Current.StartingComponents)
+                { pendingPlacement.Remove(id); TransferFeedback.CancelArrival(destination, id); return; }
                 MyInventory.TransferByPlanner(source, destination, id, MyItemFlags.None, 1, false);
-                break;
+                TransferFeedback.Update();
+                return;
             }
+            TransferFeedback.Report("Starting component unavailable through linked port.");
         }
         catch (Exception exception)
         {
@@ -404,7 +514,9 @@ public static class LinkController
     private static void Deposit(bool oreOnly, MyAngleGrinder grinder = null)
     {
         var checkedGrid = GetTargetedBlock.selectedBlock?.CubeGrid as MyCubeGrid;
-        var source = (MyInventory)MySession.Static.LocalCharacter.GetInventory(CharacterInventoryId);
+        var character = MySession.Static.LocalCharacter;
+        var drillTool = oreOnly ? character.EquippedTool as MyEntity : null;
+        var source = (MyInventory)character.GetInventory(CharacterInventoryId);
         // Transfers can mutate the inventory immediately when hosting a world.
         foreach (var item in source.GetItems().ToArray())
         {
@@ -413,6 +525,7 @@ public static class LinkController
                 (type == "MyObjectBuilder_Ingot" || type == "MyObjectBuilder_Component"));
             if (!accepted) continue;
             if (!CanTransfer()) return;
+            if (oreOnly && !CanReturnDrillOre(character, drillTool)) return;
             if (!oreOnly)
             {
                 if (!ObserveGrinder(false) || !ReferenceEquals(grinder, trackedGrinder)) return;
@@ -423,9 +536,34 @@ public static class LinkController
                 if (!CheckEnemies()) return;
                 checkedGrid = grid;
             }
-            var destination = (MyInventory)GetTargetedBlock.selectedBlock.GetInventory();
+            var selected = GetTargetedBlock.selectedBlock;
+            var port = GetTargetedBlock.selectedObject;
+            var destination = (MyInventory)selected.GetInventory();
+            if (!destination.CheckConstraint(item.Content.GetObjectId()))
+            {
+                TransferFeedback.Report("Linked container does not accept this material.");
+                continue;
+            }
+            if (destination.ComputeAmountThatFits(item.Content.GetObjectId()) <= 0)
+            {
+                TransferFeedback.WatchCapacity(destination, item.Content.GetObjectId(), false);
+                continue;
+            }
+            if (!CanTransfer() || (oreOnly ? !LanyardPreferences.Current.DrillReturns : !LanyardPreferences.Current.GrinderReturns)) return;
+            TransferFeedback.WatchArrival(destination, item.Content.GetObjectId(), "Materials", false, true);
+            if (!ReferenceEquals(selected, GetTargetedBlock.selectedBlock) || !ReferenceEquals(port, GetTargetedBlock.selectedObject) ||
+                !ReferenceEquals(source, MySession.Static?.LocalCharacter?.GetInventory(CharacterInventoryId)) || !CanTransfer())
+            { TransferFeedback.CancelArrival(destination, item.Content.GetObjectId()); return; }
+            if (oreOnly ? !CanReturnDrillOre(character, drillTool) : !ObserveGrinder(false) || !ReferenceEquals(grinder, trackedGrinder))
+            { TransferFeedback.CancelArrival(destination, item.Content.GetObjectId()); return; }
             MyInventory.TransferByPlanner(source, destination, item.Content.GetObjectId(),
                 MyItemFlags.None, item.Amount);
+            TransferFeedback.Update();
         }
     }
+
+    private static bool CanReturnDrillOre(MyCharacter character, MyEntity tool) =>
+        LanyardPreferences.Current.DrillReturns && ReferenceEquals(character, MySession.Static?.LocalCharacter) &&
+        tool != null && !tool.Closed && !tool.MarkedForClose && ReferenceEquals(tool, character.EquippedTool) &&
+        (!LanyardPreferences.Current.DrillActiveOnly || (tool is MyHandDrill drill && drill.IsShooting));
 }

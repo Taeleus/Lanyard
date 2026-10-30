@@ -53,6 +53,8 @@ internal static partial class Program
 
         public World(bool persistentPort = false)
         {
+            LanyardPreferences.Reset();
+            Sandbox.Game.MyVisualScriptLogicProvider.Highlighted = null;
             PortOwner = persistentPort ? Selected : new MyEntity();
             LinkController.Disconnect();
             grinderNow = Stopwatch.Frequency * 10;
@@ -67,6 +69,8 @@ internal static partial class Program
             CombatLockout.FollowedGrid = null;
             CombatLockout.Following = null;
             CombatLockout.Updating = null;
+            CombatLockout.Connecting = null;
+            CombatLockout.RemainingSeconds = 0;
             LinkArea.NoEnemies = true;
             LinkArea.EnemyScanFails = false;
             LinkArea.Outside = 0;
@@ -217,7 +221,7 @@ internal static partial class Program
         world.AddDepositItems();
         Tick();
         Check(WithdrawRecorder.Calls.Count == 0 && MyInventory.Transfers.Count == 0, "welder with an empty build planner does no work");
-        var plannedItem = new object();
+        var plannedItem = new MyIdentity.BuildPlanItem();
         world.Character.BuildPlanner.Add(plannedItem);
         Tick();
         Check(WithdrawRecorder.Calls.Count == 1, "welder with a build planner invokes the normal game withdrawal method once");
@@ -233,7 +237,7 @@ internal static partial class Program
 
         world = new World();
         world.Equip("WelderItem", new MyWelder());
-        world.Character.BuildPlanner.Add(new object());
+        world.Character.BuildPlanner.Add(new MyIdentity.BuildPlanItem());
         Reflections.Withdraw = null;
         Tick();
         Check(GetTargetedBlock.selectedBlock == null && WithdrawRecorder.Calls.Count == 0,
@@ -375,7 +379,7 @@ internal static partial class Program
 
         world = new World();
         world.Equip("WelderItem", new MyWelder());
-        world.Character.BuildPlanner.Add(new object());
+        world.Character.BuildPlanner.Add(new MyIdentity.BuildPlanItem());
         world.AddDepositItems();
         Tick(50);
         Check(MyInventory.Transfers.Count == 0 && WithdrawRecorder.Calls.Count == 0 && LinkArea.EnemyChecks == 1,
@@ -388,6 +392,7 @@ internal static partial class Program
 
     public static void Main()
     {
+        WelderDispatchTests();
         GrinderFiringAndCategories();
         FiringStopsBetweenItems();
         OtherToolBehavior();
@@ -398,6 +403,8 @@ internal static partial class Program
         CombatPauseTests();
         PlacementSupplyTests();
         ConnectionPersistenceTests();
+        QualityOfLifeTests();
+        PersistentCapacityFeedbackTests();
         Console.WriteLine($"PASS: {assertions} container-link integration assertions (linked production LinkController; offline game API doubles).");
     }
 }

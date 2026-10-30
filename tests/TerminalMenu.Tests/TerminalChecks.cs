@@ -4,6 +4,7 @@ using System.Reflection;
 using HarmonyLib;
 using Lanyard;
 using Sandbox.Game.Gui;
+using Sandbox.ModAPI;
 using Sandbox.Graphics.GUI;
 using VRage.Utils;
 
@@ -33,22 +34,22 @@ internal static class TerminalChecks
         check(tabs.Pages.Count == 8 && page.PageKey == 7 && Dense(tabs), "Lanyard appends one dense native tab");
         check(Enumerable.Range(0, 7).All(key => tabs.GetTabSubControl(key).Name == "Native" + key),
             "existing native tabs retain identity");
-        check(page.Text.ToString() == "Lanyard" && buttons.Select(button => button.Text.ToString()).SequenceEqual(
-            new[] { "Link targeted port", "Unlink", "Toggle bounds" }), "terminal exposes only Lanyard actions");
+        check(page.Text.ToString() == "Lanyard" && buttons.Where(button => button.Visible).Select(button => button.Text.ToString()).SequenceEqual(
+            new[] { "Connection", "Tools", "Display", "Shortcuts", "Change connection", "Pause", "Disconnect", "Toggle working area", "Toggle aimed grid" }), "terminal exposes compact connection controls and native subviews");
         check(tabs.SelectedPage == 0, "insertion preserves original selection");
         Attach.Invoke(null, new object[] { terminal });
         check(tabs.Pages.Count == 8 && tabs.HandlerCount == 1 && terminal.ClosedHandlerCount == 1,
             "repeated insertion creates no duplicate tab or callback");
 
         var reads = LinkController.StatusReads;
-        LinkController.CurrentStatus = "Linked to Cargo";
+        LinkController.StateText = "Linked to Cargo";
         terminal.Update(true);
         check(LinkController.StatusReads == reads, "hidden Lanyard tab does not refresh status");
         tabs.SelectedPage = page.PageKey;
-        check(ReferenceEquals(terminal.FocusedControl, buttons[0]), "selecting Lanyard focuses link control");
+        check(ReferenceEquals(terminal.FocusedControl, buttons.Single(button => button.Name == "LanyardLink")), "selecting Lanyard focuses link control");
         check(page.Controls.OfType<MyGuiControlMultilineText>().First().Text.ToString() == "Linked to Cargo",
             "tab selection displays current status");
-        LinkController.CurrentStatus = "Lanyard unavailable.";
+        LinkController.StateText = "Lanyard unavailable.";
         terminal.Update(true);
         check(page.Controls.OfType<MyGuiControlMultilineText>().First().Text.ToString() == "Lanyard unavailable.",
             "selected tab follows changing status");
@@ -56,9 +57,19 @@ internal static class TerminalChecks
         new MyGuiScreenTerminal().Update(true);
         check(LinkController.StatusReads == reads, "another terminal cannot refresh the active tab");
         Calls.Actions.Clear();
-        foreach (var button in buttons) button.Click();
-        check(Calls.Actions.SequenceEqual(new[] { "link", "disconnect", "bounds" }),
+        foreach (var button in buttons.Where(button => button.Visible && !button.Name.StartsWith("LanyardView"))) button.Click();
+        check(Calls.Actions.SequenceEqual(new[] { "link", "pause", "disconnect" }) &&
+            MyAPIGateway.Utilities.Notifications.Any(text => text.StartsWith("Green:")) &&
+            MyAPIGateway.Utilities.Notifications.Any(text => text.Contains("bounds hidden")),
             "shared panel delegates each action once to existing handlers");
+        buttons.Single(button => button.Name == "LanyardViewShortcuts").Click();
+        buttons.Single(button => button.Name == "LanyardBindLink").Click();
+        check(LanyardShortcuts.IsCapturing, "terminal shortcut capture starts on the visible subview");
+        tabs.SelectedPage = 0;
+        check(!LanyardShortcuts.IsCapturing, "leaving the Lanyard terminal tab cancels shortcut capture");
+        tabs.SelectedPage = page.PageKey;
+        check(ReferenceEquals(terminal.FocusedControl, buttons.Single(button => button.Name == "LanyardViewShortcuts")),
+            "returning to the terminal tab focuses a control in the retained subview");
 
         terminal.Close();
         check(tabs.HandlerCount == 0 && terminal.ClosedHandlerCount == 0, "closing terminal detaches callbacks");

@@ -43,6 +43,16 @@ namespace Sandbox.ModAPI
 
 namespace Lanyard
 {
+    internal static class LanyardPreferences
+    {
+        public static LanyardSettings Current = new LanyardSettings();
+        public static event Action Changed;
+        public static void EnsureLoaded() { }
+        public static void Change(Action<LanyardSettings> change) { change(Current); Changed?.Invoke(); }
+        public static void Reset() { Current = new LanyardSettings(); Changed?.Invoke(); }
+    }
+    internal static class LanyardShortcuts { public static void ClearTransient() { } public static void Update() { } }
+    internal static class LanyardHud { public static void Draw() { } public static void Update() { } public static void Clear() { } }
     internal static class OwnGrindingPatches { public static void Initialize() { } public static void Dispose() { } }
     internal static class TerminalMenu { public static void Initialize() { } public static void Clear() { } public static void Dispose() { } }
     internal static class LanyardScreen { public static void Open() { } public static void Close() { } }

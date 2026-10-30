@@ -39,7 +39,6 @@ internal static class ConnectorDamageTests
         foreach (var activity in grids.Values)
         {
             activity.GetType().GetProperty("Until").SetValue(activity, 0L);
-            activity.GetType().GetProperty("ObservationUntil").SetValue(activity, 0L);
         }
         MyAPIGateway.Utilities.Files.Clear();
     }
@@ -122,10 +121,10 @@ internal static class ConnectorDamageTests
         var newlyObserved = new MyCubeGrid(); MyEntities.Add(newlyObserved);
         MyAPIGateway.GridGroups.LogicalGroups[grid] = new List<IMyCubeGrid> { grid, newlyObserved };
         grid.ConnectionsChanged();
-        check(CombatLockout.IsBlocked, "connector integration: docking a newly observed grid still imports its observation interval");
+        check(!CombatLockout.IsBlocked, "connector integration: docking a newly observed quiet grid creates no cooldown");
         MyAPIGateway.GridGroups.LogicalGroups.Remove(grid);
         grid.ConnectionsChanged();
-        check(CombatLockout.IsBlocked, "connector integration: undocking cannot clear the already imported observation interval");
+        check(!CombatLockout.IsBlocked, "connector integration: quiet undocking remains ready");
         CombatLockout.Clear();
     }
 }

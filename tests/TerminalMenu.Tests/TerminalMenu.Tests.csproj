@@ -9,6 +9,12 @@
     <Compile Include="../../ClientPlugin/Commands.cs" Link="Commands.cs" />
     <Compile Include="../../ClientPlugin/TerminalMenu.cs" Link="TerminalMenu.cs" />
     <Compile Include="../../ClientPlugin/LanyardPanel.cs" Link="LanyardPanel.cs" />
+    <Compile Include="../../ClientPlugin/LanyardScreen.cs" Link="LanyardScreen.cs" />
+    <Compile Include="../../ClientPlugin/LanyardHud.cs" Link="LanyardHud.cs" />
+    <Compile Include="../../ClientPlugin/LanyardHudPositionScreen.cs" Link="LanyardHudPositionScreen.cs" />
+    <Compile Include="../../ClientPlugin/LanyardSettings.cs" Link="LanyardSettings.cs" />
+    <Compile Include="../../ClientPlugin/RangeWarningState.cs" Link="RangeWarningState.cs" />
+    <Compile Include="../../ClientPlugin/BoundsPreview.cs" Link="BoundsPreview.cs" />
     <PackageReference Include="Lib.Harmony" Version="2.4.2" />
   </ItemGroup>
 </Project>

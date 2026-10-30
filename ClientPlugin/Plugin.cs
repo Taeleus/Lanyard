@@ -12,6 +12,7 @@ public class Plugin : IPlugin
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     public void Init(object gameInstance)
     {
+        LanyardPreferences.EnsureLoaded();
         OwnGrindingPatches.Initialize();
         Reflections.Initialize();
         TerminalMenu.Initialize();
@@ -21,6 +22,8 @@ public class Plugin : IPlugin
 
     public void Dispose()
     {
+        LanyardHud.Clear();
+        LanyardShortcuts.ClearTransient();
         MySession.OnUnloading -= LinkController.SuspendForWorldChange;
         LinkController.SuspendForWorldChange();
         PlacementSupply.Dispose();
@@ -32,7 +35,10 @@ public class Plugin : IPlugin
 
     public void Update()
     {
+        LanyardPreferences.EnsureLoaded();
+        LanyardShortcuts.Update();
         LinkController.Update();
+        BoundsPreview.Update();
     }
 
 }

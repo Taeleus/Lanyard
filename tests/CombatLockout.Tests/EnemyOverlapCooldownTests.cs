@@ -45,7 +45,6 @@ internal static class EnemyOverlapCooldownTests
         foreach (var activity in activities.Values)
         {
             activity.GetType().GetProperty("Until").SetValue(activity, 0L);
-            activity.GetType().GetProperty("ObservationUntil").SetValue(activity, 0L);
         }
     }
 
@@ -77,7 +76,8 @@ internal static class EnemyOverlapCooldownTests
             check(CombatLockout.IsBlocked && Timer.Deadline >= deadline,
                 "overlap cooldown: changing selected constructs cannot clear hostile activity");
             CombatLockout.Clear();
-            check(Timer.Deadline >= deadline, "overlap cooldown: session teardown does not erase the deadline");
+            check(Timer.Deadline == 0 && MyAPIGateway.Utilities.Files.ContainsKey(CombatCooldownStore.FileName),
+                "overlap cooldown: teardown freezes remaining state in storage and releases the live clock");
             Timer.Clear();
             CombatLockout.Start();
             check(CombatLockout.IsBlocked && CombatLockout.BlockReason.IndexOf("Restored cooldown", StringComparison.OrdinalIgnoreCase) >= 0,
