@@ -54,7 +54,13 @@ public static class LinkArea
 
     public static bool CheckEnemies(MyCubeGrid anchor, out string reason)
     {
+        return CheckEnemies(anchor, out reason, out _);
+    }
+
+    public static bool CheckEnemies(MyCubeGrid anchor, out string reason, out bool hostileOverlap)
+    {
         reason = null;
+        hostileOverlap = false;
         var seen = new HashSet<MyCubeGrid>();
         try
         {
@@ -94,6 +100,7 @@ public static class LinkArea
                     if (!shareModes.Add(module.ShareMode)) continue;
                     if (!EnemyOwnership.IsEnemy(block.OwnerId, identity))
                         continue;
+                    hostileOverlap = true;
                     reason = "Lanyard blocked: enemy grid overlaps the linked grid bounds.";
                     return false;
                 }

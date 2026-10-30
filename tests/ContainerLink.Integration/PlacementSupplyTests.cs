@@ -54,7 +54,7 @@ internal static partial class Program
     private static void PlacementOnlyFirstComponent()
     {
         var world = PlacementWorld();
-        var planned = new object();
+        var planned = new MyIdentity.BuildPlanItem();
         world.Character.BuildPlanner.Add(planned);
         RequestPlacement();
         Check(MyInventory.Transfers.Count == 1, "placement: exactly one transfer request");

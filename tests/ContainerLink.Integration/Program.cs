@@ -47,12 +47,15 @@ internal static partial class Program
         public readonly MyCubeGrid Grid = new MyCubeGrid();
         public readonly MyCubeBlock Selected = new MyCubeBlock();
         public readonly MyCubeBlock Other = new MyCubeBlock { CustomName = "Other container" };
-        public readonly MyEntity PortOwner = new MyEntity();
+        public readonly MyEntity PortOwner;
         public readonly MyAngleGrinder Grinder = new MyAngleGrinder { IsShooting = true };
         public MyInventory Destination => Selected.Inventories[0];
 
-        public World()
+        public World(bool persistentPort = false)
         {
+            LanyardPreferences.Reset();
+            Sandbox.Game.MyVisualScriptLogicProvider.Highlighted = null;
+            PortOwner = persistentPort ? Selected : new MyEntity();
             LinkController.Disconnect();
             grinderNow = Stopwatch.Frequency * 10;
             typeof(LinkController).GetField("grinderClock", BindingFlags.NonPublic | BindingFlags.Static)
@@ -62,10 +65,14 @@ internal static partial class Program
             MyLogReset();
             CombatLockout.IsBlocked = false;
             CombatLockout.Updates = CombatLockout.Reports = 0;
+            CombatLockout.EnemyOverlapObservations = 0;
             CombatLockout.FollowedGrid = null;
             CombatLockout.Following = null;
             CombatLockout.Updating = null;
+            CombatLockout.Connecting = null;
+            CombatLockout.RemainingSeconds = 0;
             LinkArea.NoEnemies = true;
+            LinkArea.EnemyScanFails = false;
             LinkArea.Outside = 0;
             LinkArea.BoundsChecks = LinkArea.EnemyChecks = LinkArea.CacheClears = 0;
             BoundsPreview.Connections = BoundsPreview.Disconnections = 0;
@@ -192,7 +199,8 @@ internal static partial class Program
         world = new World();
         world.AddDepositItems();
         // Release the same grinder inside the real per-update access check.
-        world.Selected.AccessCheck = () => world.Grinder.IsShooting = false;
+        var accessPasses = 0;
+        world.Selected.AccessCheck = () => { if (++accessPasses >= 2) world.Grinder.IsShooting = false; };
         Tick(1);
         Check(MyInventory.Transfers.Count == 3,
             "same-grinder release after observation remains eligible during the grace");
@@ -213,7 +221,7 @@ internal static partial class Program
         world.AddDepositItems();
         Tick();
         Check(WithdrawRecorder.Calls.Count == 0 && MyInventory.Transfers.Count == 0, "welder with an empty build planner does no work");
-        var plannedItem = new object();
+        var plannedItem = new MyIdentity.BuildPlanItem();
         world.Character.BuildPlanner.Add(plannedItem);
         Tick();
         Check(WithdrawRecorder.Calls.Count == 1, "welder with a build planner invokes the normal game withdrawal method once");
@@ -229,7 +237,7 @@ internal static partial class Program
 
         world = new World();
         world.Equip("WelderItem", new MyWelder());
-        world.Character.BuildPlanner.Add(new object());
+        world.Character.BuildPlanner.Add(new MyIdentity.BuildPlanItem());
         Reflections.Withdraw = null;
         Tick();
         Check(GetTargetedBlock.selectedBlock == null && WithdrawRecorder.Calls.Count == 0,
@@ -247,7 +255,7 @@ internal static partial class Program
         var revocations = new (string Name, Action<World> Revoke, bool KeepLink)[]
         {
             ("manual disconnect", world => LinkController.Disconnect(), false),
-            ("combat", world => CombatLockout.IsBlocked = true, false),
+            ("combat", world => CombatLockout.IsBlocked = true, true),
             ("access", world => world.Selected.PlayerAccess = false, false),
             ("outside bounds", world => LinkArea.Outside = 0.001, true),
             ("break distance", world => LinkArea.Outside = 100.001, false),
@@ -293,8 +301,8 @@ internal static partial class Program
         CombatLockout.Updating = () => followedBeforeUpdate = CombatLockout.FollowedGrid == fragment;
         Tick();
         Check(followedBeforeUpdate, "grid transition: controller binds selected container's live grid before polling combat");
-        Check(GetTargetedBlock.selectedBlock == null && MyInventory.Transfers.Count == 0,
-            "grid transition: new fragment observation disconnects before any transfer");
+        Check(GetTargetedBlock.selectedBlock == world.Selected && MyInventory.Transfers.Count == 0,
+            "grid transition: new fragment observation pauses the retained container before any transfer");
 
         world = new World(); world.AddDepositItems();
         var survivor = new MyCubeGrid();
@@ -303,7 +311,7 @@ internal static partial class Program
         CombatLockout.Following = grid => { if (grid == survivor) CombatLockout.IsBlocked = true; };
         Check(!CanTransfer() && CombatLockout.FollowedGrid == survivor,
             "grid transition: direct transfer guard follows the same container after its original grid closes");
-        Check(GetTargetedBlock.selectedBlock == null && MyInventory.Transfers.Count == 0,
+        Check(GetTargetedBlock.selectedBlock == world.Selected && MyInventory.Transfers.Count == 0,
             "grid transition: merge-survivor combat blocks the preserved selected container");
 
         world = new World(); world.AddDepositItems();
@@ -313,7 +321,7 @@ internal static partial class Program
         Tick();
         Check(MyInventory.Transfers.Count == 1 && world.Character.Inventory.Items.Count == 2,
             "grid transition: hosted container move after the first deposit stops remaining requests");
-        Check(CombatLockout.FollowedGrid == fragment && GetTargetedBlock.selectedBlock == null,
+        Check(CombatLockout.FollowedGrid == fragment && GetTargetedBlock.selectedBlock == world.Selected,
             "grid transition: per-item guard imports the new grid restriction without waiting for another update");
 
         world = new World(); world.AddDepositItems();
@@ -364,24 +372,27 @@ internal static partial class Program
         world = new World();
         world.AddDepositItems();
         LinkArea.NoEnemies = false;
-        Tick();
-        Check(MyInventory.Transfers.Count == 0 && GetTargetedBlock.selectedBlock == null, "enemy scan disconnects before a transfer batch");
-        Check(LinkArea.EnemyChecks == 1, "first enemy scan failure prevents subsequent disconnected scans");
+        Tick(1);
+        Check(MyInventory.Transfers.Count == 0 && GetTargetedBlock.selectedBlock == world.Selected, "enemy overlap pauses before a transfer batch");
+        Check(LinkArea.EnemyChecks == 1 && CombatLockout.EnemyOverlapObservations == 1,
+            "first hostile overlap starts the cooldown without dropping the selected container");
 
         world = new World();
         world.Equip("WelderItem", new MyWelder());
-        world.Character.BuildPlanner.Add(new object());
+        world.Character.BuildPlanner.Add(new MyIdentity.BuildPlanItem());
         world.AddDepositItems();
         Tick(50);
         Check(MyInventory.Transfers.Count == 0 && WithdrawRecorder.Calls.Count == 0 && LinkArea.EnemyChecks == 1,
             "periodic enemy check runs while waiting for an unchanged welder transfer batch");
         LinkArea.NoEnemies = false;
         Tick(1);
-        Check(MyInventory.Transfers.Count == 0 && GetTargetedBlock.selectedBlock == null, "batch boundary enemy scan catches enemies appearing after the periodic scan");
+        Check(MyInventory.Transfers.Count == 0 && GetTargetedBlock.selectedBlock == world.Selected,
+            "batch boundary enemy scan pauses for enemies appearing after the periodic scan");
     }
 
     public static void Main()
     {
+        WelderDispatchTests();
         GrinderFiringAndCategories();
         FiringStopsBetweenItems();
         OtherToolBehavior();
@@ -389,7 +400,11 @@ internal static partial class Program
         SelectedContainerGridTransitions();
         AccessOwnershipAndBounds();
         GrinderGraceTests();
+        CombatPauseTests();
         PlacementSupplyTests();
+        ConnectionPersistenceTests();
+        QualityOfLifeTests();
+        PersistentCapacityFeedbackTests();
         Console.WriteLine($"PASS: {assertions} container-link integration assertions (linked production LinkController; offline game API doubles).");
     }
 }

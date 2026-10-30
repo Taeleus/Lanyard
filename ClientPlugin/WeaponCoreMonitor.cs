@@ -117,15 +117,15 @@ internal sealed class WeaponCoreMonitor : IDisposable
         }
     }
 
-    public Weapon Watch(MyEntity entity, MyDefinitionId? definition, Action activity)
+    public Weapon Watch(MyEntity entity, MyDefinitionId? definition, Action activity, bool resumeObservation = false)
     {
-        return Watch(entity, definition, reason => activity());
+        return Watch(entity, definition, reason => activity(), resumeObservation);
     }
 
-    public Weapon Watch(MyEntity entity, MyDefinitionId? definition, Action<string> activity)
+    public Weapon Watch(MyEntity entity, MyDefinitionId? definition, Action<string> activity, bool resumeObservation = false)
     {
         if (disposed) throw new ObjectDisposedException(nameof(WeaponCoreMonitor));
-        var weapon = new Weapon(this, entity, definition, activity);
+        var weapon = new Weapon(this, entity, definition, activity, resumeObservation);
         watched.Add(weapon);
         return weapon;
     }
@@ -138,11 +138,14 @@ internal sealed class WeaponCoreMonitor : IDisposable
     public void ObserveRemovedHandheld(MyEntity entity, MyDefinitionId? definition, Action<string> activity)
     {
         if (disposed || !Ready) return;
-        // Physical rifle definitions survive teardown of the core component.
-        // The provider query also covers custom handheld entities. Ordinary
-        // engineer tools satisfy neither check and receive no lockout.
+        // Classification/positive lifetime count alone is not recent firing.
+        // Probe live state while it exists; closed entities add no evidence.
         if ((definition.HasValue && definitions.Contains(definition.Value)) || hasWeapon(entity))
-            activity("WeaponCore handheld observation after holster");
+        {
+            var observer = Watch(entity, definition, activity, true);
+            try { observer.Poll(); }
+            finally { observer.Dispose(); }
+        }
     }
 
     public void Dispose()
@@ -183,6 +186,7 @@ internal sealed class WeaponCoreMonitor : IDisposable
         private readonly MyEntity entity;
         private readonly MyDefinitionId? definition;
         private readonly Action<string> activity;
+        private readonly bool resumeObservation;
         private readonly Dictionary<int, Part> parts = new Dictionary<int, Part>();
         private readonly Dictionary<string, int> map = new Dictionary<string, int>();
         private bool identified;
@@ -192,12 +196,16 @@ internal sealed class WeaponCoreMonitor : IDisposable
         public string UnavailableReason { get; private set; }
         public bool IsObserved => identified && !Uncertain && !disposed && !api.disposed &&
             api.Ready && !api.Failed && !entity.Closed && !entity.MarkedForClose;
+        public bool HasResumeHistory => IsObserved || (resumeObservation && !disposed && !api.disposed &&
+            !entity.Closed && !entity.MarkedForClose);
 
-        public Weapon(WeaponCoreMonitor api, MyEntity entity, MyDefinitionId? definition, Action<string> activity)
+        public Weapon(WeaponCoreMonitor api, MyEntity entity, MyDefinitionId? definition, Action<string> activity,
+            bool resumeObservation = false)
         {
             this.api = api; this.entity = entity;
             this.definition = definition ?? (entity as IMyGunBaseUser)?.PhysicalItemId;
             this.activity = activity;
+            this.resumeObservation = resumeObservation;
         }
 
         public void Poll()
@@ -260,9 +268,8 @@ internal sealed class WeaponCoreMonitor : IDisposable
                         part.Registered = true;
                     }
                     identified = true;
-                    // WC has no reliable last-shot timestamp before observation.
-                    // Start a quiet observation cooldown instead of assuming peace.
-                    activity("WeaponCore weapon observation started");
+                    // Identification establishes a baseline, not combat. Only
+                    // live shooting/events or subsequent counter changes count.
                 }
                 foreach (var entry in parts)
                 {

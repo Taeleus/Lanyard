@@ -47,7 +47,6 @@ internal static class TopologyNotificationTests
         foreach (var activity in grids.Values)
         {
             activity.GetType().GetProperty("Until").SetValue(activity, 0L);
-            activity.GetType().GetProperty("ObservationUntil").SetValue(activity, 0L);
         }
         MyAPIGateway.Utilities.Files.Clear();
     }
@@ -126,7 +125,7 @@ internal static class TopologyNotificationTests
         check(!CombatLockout.IsBlocked, "topology: moving live grid content during transfer is not destruction");
         ship.IsBlockTrasferInProgress = false;
         var fragment = new MyCubeGrid(); MyEntities.Add(fragment);
-        check(!CombatLockout.CanConnect(fragment), "topology: a split fragment still has its initial observation interval");
+        check(CombatLockout.CanConnect(fragment), "topology: a quiet split fragment has no artificial observation interval");
         ObserveQuiet(); CombatLockout.CanConnect(ship);
         var destroyedConnector = new MyShipConnector(); ship.Add(destroyedConnector);
         ship.RemoveSlim(destroyedConnector.SlimBlock);

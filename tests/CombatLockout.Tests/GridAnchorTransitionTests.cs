@@ -37,7 +37,6 @@ internal static class GridAnchorTransitionTests
         foreach (var activity in activities.Values)
         {
             activity.GetType().GetProperty("Until").SetValue(activity, 0L);
-            activity.GetType().GetProperty("ObservationUntil").SetValue(activity, 0L);
         }
         MyAPIGateway.Utilities.Files.Clear();
     }
@@ -60,9 +59,9 @@ internal static class GridAnchorTransitionTests
         var fragment = new MyCubeGrid(); MyEntities.Add(fragment);
         Move(selected, fragment);
         CombatLockout.FollowGrid(selected.CubeGrid);
-        check(CombatLockout.IsBlocked, "anchor: live selected container imports split fragment observation without reconnecting");
-        check(Timer.Deadline > Stopwatch.GetTimestamp() + (CombatLockout.CooldownSeconds - 1) * Stopwatch.Frequency,
-            "anchor: split fragment requires the full initial quiet interval");
+        check(!CombatLockout.IsBlocked, "anchor: quiet selected-container split remains immediately ready");
+        check(Timer.Deadline == 0,
+            "anchor: quiet split does not invent a deadline");
 
         Quiet(); CombatLockout.Update();
         check(!CombatLockout.IsBlocked, "anchor: split fragment becomes available after quiet observation");
@@ -85,7 +84,7 @@ internal static class GridAnchorTransitionTests
         original.Closed = true;
         survivor.Merge(original);
         CombatLockout.FollowGrid(selected.CubeGrid);
-        check(CombatLockout.IsBlocked, "anchor: merge survivor observation replaces the removed closed anchor");
+        check(!CombatLockout.IsBlocked, "anchor: quiet merge survivor remains ready after removed anchor closes");
         Quiet(); CombatLockout.Update();
         survivor.Damage(10);
         check(CombatLockout.IsBlocked, "anchor: survivor damage remains observed after the old grid closes");

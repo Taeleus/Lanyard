@@ -48,7 +48,6 @@ internal static class CombatAuditTests
         foreach (var activity in grids.Values)
         {
             activity.GetType().GetProperty("Until").SetValue(activity, 0L);
-            activity.GetType().GetProperty("ObservationUntil").SetValue(activity, 0L);
         }
         MyAPIGateway.Utilities.Files.Clear();
     }
@@ -58,7 +57,7 @@ internal static class CombatAuditTests
         var grid = World();
         CombatLockout.Start();
         check(!CombatLockout.IsBlocked, "audit: observing unknown grids does not reveal nearby activity");
-        check(!CombatLockout.CanConnect(grid), "audit: newly observed grid requires quiet observation interval");
+        check(CombatLockout.CanConnect(grid), "audit: newly observed quiet grid is immediately ready");
         ObserveQuiet();
         check(CombatLockout.CanConnect(grid), "audit: observed quiet grid becomes usable");
 
@@ -74,7 +73,7 @@ internal static class CombatAuditTests
 
         grid = World(); CombatLockout.Start(); ObserveQuiet();
         grid.Damage(1);
-        var fragment = new MyCubeGrid(); MyEntities.Add(fragment);
+        var fragment = new MyCubeGrid(); MyEntities.Add(fragment); grid.Split(fragment);
         check(!CombatLockout.CanConnect(fragment), "audit: newly split fragment cannot lose parent combat history");
 
         grid = World();
@@ -106,14 +105,14 @@ internal static class CombatAuditTests
         CombatLockout.Start(); ObserveQuiet();
         var coreHand = new CoreHand(); core.Add(coreHand, 0);
         MySession.Static.LocalCharacter.CurrentWeapon = coreHand;
-        core.State(coreHand, 0).Shots++;
+        core.State(coreHand, 0).Shooting = true;
         MyEntities.RemoveEntity(coreHand); MySession.Static.LocalCharacter.CurrentWeapon = null;
-        check(CombatLockout.IsBlocked, "audit: WC equip/fire/holster between updates starts observation cooldown");
+        check(CombatLockout.IsBlocked, "audit: actual WC firing state during removal starts combat cooldown");
         ObserveQuiet();
         var closedHand = new KnownCoreHand { Closed = true };
         MySession.Static.LocalCharacter.CurrentWeapon = closedHand;
         MyEntities.RemoveEntity(closedHand); MySession.Static.LocalCharacter.CurrentWeapon = null;
-        check(CombatLockout.IsBlocked, "audit: known WC rifle stays protected after its provider component is removed");
+        check(!CombatLockout.IsBlocked, "audit: a closed known rifle without recent fire evidence creates no invented timeout");
         ObserveQuiet();
         var grinder = new Tool(); MySession.Static.LocalCharacter.CurrentWeapon = grinder;
         MyEntities.RemoveEntity(grinder); MySession.Static.LocalCharacter.CurrentWeapon = null;

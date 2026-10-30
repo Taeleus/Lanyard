@@ -26,10 +26,12 @@ internal static class TerminalMenu
         {
             var create = AccessTools.Method(typeof(MyGuiScreenTerminal), "CreateTabs", Type.EmptyTypes);
             var update = AccessTools.Method(typeof(MyGuiScreenTerminal), "Update", new[] { typeof(bool) });
-            if (create == null || update == null) throw new MissingMethodException("Terminal menu methods are unavailable.");
+            var input = AccessTools.DeclaredMethod(typeof(MyGuiScreenTerminal), "HandleInput", new[] { typeof(bool) });
+            if (create == null || update == null || input == null) throw new MissingMethodException("Terminal menu methods are unavailable.");
             harmony = new Harmony(HarmonyId);
             harmony.Patch(create, postfix: new HarmonyMethod(typeof(TerminalMenu), nameof(CreateTabsPostfix)));
             harmony.Patch(update, postfix: new HarmonyMethod(typeof(TerminalMenu), nameof(UpdatePostfix)));
+            harmony.Patch(input, prefix: new HarmonyMethod(typeof(TerminalMenu), nameof(HandleInputPrefix)));
         }
         catch (Exception exception)
         {
@@ -74,7 +76,7 @@ internal static class TerminalMenu
             page.Name = PageName;
             page.Text = new StringBuilder("Lanyard");
             page.TextScale = 0.7005405f;
-            panel = new LanyardPanel(page.Controls);
+            panel = new LanyardPanel(page.Controls, terminal);
             tabs.TabButtonScale = tabs.TabButtonScale;
             tabs.OnPageChanged += PageChanged;
             terminal.Closed += TerminalClosed;
@@ -86,17 +88,35 @@ internal static class TerminalMenu
         }
     }
 
-    private static void UpdatePostfix(MyGuiScreenTerminal __instance)
+    private static void UpdatePostfix(MyGuiScreenTerminal __instance, bool hasFocus)
     {
-        if (ReferenceEquals(terminal, __instance) && page != null && tabs.SelectedPage == page.PageKey)
+        if (!ReferenceEquals(terminal, __instance) || page == null) return;
+        var active = tabs.SelectedPage == page.PageKey && hasFocus;
+        panel?.SetActive(active);
+        if (active) panel?.RefreshStatus();
+        var restore = active ? panel?.TakeFocusRequest() : null;
+        if (restore != null) terminal.FocusedControl = restore;
+    }
+
+    private static bool HandleInputPrefix(MyGuiScreenTerminal __instance)
+    {
+        if (!ReferenceEquals(terminal, __instance) || page == null || tabs.SelectedPage != page.PageKey) return true;
+        try
+        {
+            if (!LanyardShortcuts.HandleCaptureEscape(__instance)) return true;
             panel?.RefreshStatus();
+            return false;
+        }
+        catch (Exception exception) { LogFailure("shortcut input", exception); return true; }
     }
 
     private static void PageChanged()
     {
         try
         {
-            if (page == null || tabs.SelectedPage != page.PageKey) return;
+            if (page == null) return;
+            panel?.SetActive(tabs.SelectedPage == page.PageKey);
+            if (tabs.SelectedPage != page.PageKey) return;
             panel?.RefreshStatus();
             terminal.FocusedControl = panel?.FocusControl;
         }

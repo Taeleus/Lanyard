@@ -1,7 +1,8 @@
 namespace Lanyard;
 
 // Uses monotonic timestamps supplied by the caller; wall-clock changes cannot
-// shorten an active cooldown. Session teardown preserves the active deadline.
+// shorten an active cooldown. Teardown persists its remaining duration before
+// clearing this live clock; a new session reconstructs a fresh deadline.
 internal sealed class CombatCooldown
 {
     private readonly long duration;
