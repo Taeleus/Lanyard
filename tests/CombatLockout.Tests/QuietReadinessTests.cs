@@ -163,13 +163,14 @@ internal static class QuietReadinessTests
         MyAPIGateway.Utilities.FailWrites = true;
         grid.Damage(1);
         check(CombatLockout.IsBlocked && CombatLockout.RemainingSeconds == -1,
-            "remaining persistence: active save failure fails monitoring closed");
+            "remaining persistence: active save failure keeps storage availability closed");
         CombatLockout.Clear();
         MyEntities.Entities.Clear();
         MySession.Static = new MySession();
         var next = new MyCubeGrid();
         MyEntities.Add(next);
         MyAPIGateway.Utilities.FailWrites = false;
+        typeof(CombatLockout).GetField("nextStorageRetry", PrivateStatic).SetValue(null, 0L);
         CombatLockout.Start();
         check(CombatLockout.IsBlocked && CombatLockout.RemainingSeconds >= 119,
             "remaining persistence: failed teardown cannot load a stale shorter disk remainder in process");

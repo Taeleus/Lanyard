@@ -29,7 +29,6 @@ internal sealed class CombatCooldownStore
         else File.Move(temporary, path);
     };
     private long savedRemaining = -1;
-    private long lastWrite;
     private long knownDeadline;
     private bool retryPending;
 
@@ -55,8 +54,8 @@ internal sealed class CombatCooldownStore
         }
         else remaining = 0;
 
-        if (canonicalize) Write(remaining, now);
-        else { savedRemaining = remaining; lastWrite = now; }
+        if (canonicalize) Write(remaining);
+        else savedRemaining = remaining;
         knownDeadline = remaining == 0 ? 0 : now + ToMonotonic(remaining);
         return knownDeadline;
     }
@@ -68,18 +67,17 @@ internal sealed class CombatCooldownStore
             (long)Math.Ceiling((double)(deadline - now) * TimeSpan.TicksPerSecond / Stopwatch.Frequency));
         var increased = deadline > knownDeadline + Math.Max(1, Stopwatch.Frequency / 1000);
         knownDeadline = Math.Max(knownDeadline, deadline);
-        // Activity that increases the saved remainder is durable immediately.
-        // Otherwise checkpoint once per second, and always write exact remaining
-        // time on a clean suspension. Expiry is durable as soon as observed.
-        if (!force && !retryPending && savedRemaining >= 0 && remaining > 0 && !increased &&
-            now - lastWrite < Stopwatch.Frequency) return;
+        // Countdown alone needs no disk write. Persist new activity when its
+        // remainder is not already covered, exact clean suspension, and zero
+        // on expiry. A pending failure must still be retried by the caller.
+        if (!force && !retryPending && savedRemaining >= 0 && remaining > 0 && !increased) return;
         if (!force && remaining > 0)
             remaining = Math.Min(MaximumTicks, ((remaining + TimeSpan.TicksPerMillisecond - 1) / TimeSpan.TicksPerMillisecond) * TimeSpan.TicksPerMillisecond);
-        if (remaining == savedRemaining) return;
-        Write(remaining, now);
+        if (remaining == savedRemaining) { retryPending = false; return; }
+        Write(remaining);
     }
 
-    private void Write(long remaining, long now)
+    private void Write(long remaining)
     {
         retryPending = true;
         if (string.IsNullOrEmpty(MyFileSystem.UserDataPath))
@@ -105,7 +103,6 @@ internal sealed class CombatCooldownStore
             catch { }
         }
         savedRemaining = remaining;
-        lastWrite = now;
         retryPending = false;
     }
 

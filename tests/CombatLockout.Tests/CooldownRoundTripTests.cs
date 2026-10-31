@@ -68,19 +68,19 @@ internal static class CooldownRoundTripTests
             monotonic += Stopwatch.Frequency / 2;
             checkpoint.Save(activeDeadline);
             check(MyAPIGateway.Utilities.Writes == writesBefore,
-                "remaining persistence: online countdown checkpoints are throttled");
+                "remaining persistence: online countdown performs no record writes");
             monotonic += Stopwatch.Frequency * 3 / 5;
             checkpoint.Save(activeDeadline);
             var saved = ReadRemaining();
-            check(saved < 120 * TimeSpan.TicksPerSecond && saved > 118 * TimeSpan.TicksPerSecond,
-                "remaining persistence: periodic checkpoint decreases durable remainder");
+            check(saved == 120 * TimeSpan.TicksPerSecond && MyAPIGateway.Utilities.Writes == writesBefore,
+                "remaining persistence: countdown leaves the last committed remainder unchanged");
             monotonic += Stopwatch.Frequency / 4;
             var actualAtCrash = (double)(activeDeadline - monotonic) / Stopwatch.Frequency;
             monotonic = 5 * Stopwatch.Frequency;
             utc = utc.AddMonths(6);
             var crashRemaining = (double)(new CombatCooldownStore().Load() - monotonic) / Stopwatch.Frequency;
-            check(crashRemaining >= actualAtCrash && crashRemaining - actualAtCrash <= 1.001,
-                "remaining persistence: crash restores conservative checkpoint with at most one second plus rounding excess");
+            check(crashRemaining == 120 && crashRemaining >= actualAtCrash,
+                "remaining persistence: crash conservatively restores the last activity save without spending offline time");
 
             var shortStore = new CombatCooldownStore();
             var shortDeadline = monotonic + Stopwatch.Frequency / 2;
@@ -88,7 +88,7 @@ internal static class CooldownRoundTripTests
             monotonic += Stopwatch.Frequency;
             shortStore.Save(shortDeadline, true);
             check(new CombatCooldownStore().Load() == 0,
-                "remaining persistence: expired clean teardown writes zero even inside checkpoint interval");
+                "remaining persistence: expired clean teardown immediately writes zero");
 
             MyAPIGateway.Utilities.Files.Clear();
             MyAPIGateway.Utilities.Files[CombatCooldownStore.LegacyFileName] = utc.AddSeconds(30).Ticks.ToString(CultureInfo.InvariantCulture);
@@ -154,7 +154,7 @@ internal static class CooldownRoundTripTests
             MyAPIGateway.Utilities.FailWrites = false;
             loadedRetry.Save(monotonic + 120 * Stopwatch.Frequency);
             check(threw && ReadRemaining() == 120 * TimeSpan.TicksPerSecond,
-                "remaining persistence: a failed activity extension retries immediately despite checkpoint throttling");
+                "remaining persistence: direct store retry preserves an activity extension");
         }
         finally
         {

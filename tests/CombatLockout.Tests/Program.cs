@@ -30,6 +30,9 @@ internal static class Program
     }
     private static MyCubeGrid World()
     {
+        // Each World is a new isolated storage fixture, not an in-process
+        // handoff. Finish any recovered prior fixture's pending suspension.
+        typeof(CombatLockout).GetField("nextStorageRetry", BindingFlags.NonPublic | BindingFlags.Static).SetValue(null, 0L);
         CombatLockout.Clear();
         ResetTimer();
         MyAPIGateway.Utilities = new Utilities();
@@ -129,6 +132,11 @@ internal static class Program
     }
     private static void Run(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--storage-followup-probe")
+        {
+            CooldownStorageProbe.Run();
+            return;
+        }
         if (args.Length > 0 && args[0] == "--effects-only")
         {
             OwnGrindingPatches.Initialize();
@@ -149,6 +157,7 @@ internal static class Program
         EnemyOverlapCooldownTests.Run(Check);
         CooldownRoundTripTests.Run(Check);
         CooldownAtomicSaveTests.Run(Check);
+        CooldownWriteRecoveryTests.Run(Check);
         CombatResumeTests.Run(Check);
         QuietReadinessTests.Run(Check);
         GridOwnershipCacheTests.Run(Check);

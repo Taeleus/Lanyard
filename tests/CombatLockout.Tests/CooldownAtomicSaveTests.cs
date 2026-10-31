@@ -80,11 +80,11 @@ internal static class CooldownAtomicSaveTests
                     "atomic " + fault + ": unrelated and stale temporary records are preserved and ignored");
                 store.Save(now + 120 * Stopwatch.Frequency);
                 check(new CombatCooldownStore().Load() == now + 120 * Stopwatch.Frequency,
-                    "atomic " + fault + ": pending activity retries within checkpoint interval");
+                    "atomic " + fault + ": direct store retry publishes pending activity");
                 var count = MyAPIGateway.Utilities.Writes;
                 now += Stopwatch.Frequency / 2;
                 store.Save(now + 119 * Stopwatch.Frequency + Stopwatch.Frequency / 2);
-                check(MyAPIGateway.Utilities.Writes == count, "atomic " + fault + ": successful retry resumes checkpoint throttling");
+                check(MyAPIGateway.Utilities.Writes == count, "atomic " + fault + ": successful retry needs no countdown writes");
             }
 
             // Initial creation must leave no canonical record when interrupted.

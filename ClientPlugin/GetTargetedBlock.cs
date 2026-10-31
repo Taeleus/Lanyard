@@ -50,7 +50,13 @@ public static class GetTargetedBlock
         try
         {
             var utils = MyAPIGateway.Utilities;
-            if (!LinkRecovery.Update()) return;
+            if (!LinkRecovery.Update())
+            {
+                utils?.ShowNotification(LinkRecovery.IsPending
+                    ? "Saved link pending. Use /ly off to forget it, then /ly to link another container."
+                    : "Lanyard is not ready to link yet. Try /ly again shortly.", 5000, "White");
+                return;
+            }
             if (selectedBlock != null && !LinkController.ValidateExistingSelection()) return;
             previousBlock = selectedBlock;
             previousPort = selectedObject;

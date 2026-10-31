@@ -1,5 +1,11 @@
 # Lanyard changelog
 
+## v0.3.5 — 2026-10-30
+
+- Save cooldown changes and clean session exits without writing during the countdown.
+- Retry temporary cooldown-save failures while keeping transfers paused and combat monitoring active.
+- Explain how to clear a pending saved link before choosing another container.
+
 ## v0.3.4 — 2026-10-30
 
 - Preserve the last complete cooldown record if a save is interrupted.
