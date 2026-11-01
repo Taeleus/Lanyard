@@ -71,9 +71,9 @@ internal sealed class CombatCooldownStore
         // remainder is not already covered, exact clean suspension, and zero
         // on expiry. A pending failure must still be retried by the caller.
         if (!force && !retryPending && savedRemaining >= 0 && remaining > 0 && !increased) return;
+        if (remaining == savedRemaining || (!force && remaining > 0 && remaining < savedRemaining)) { retryPending = false; return; }
         if (!force && remaining > 0)
             remaining = Math.Min(MaximumTicks, ((remaining + TimeSpan.TicksPerMillisecond - 1) / TimeSpan.TicksPerMillisecond) * TimeSpan.TicksPerMillisecond);
-        if (remaining == savedRemaining) { retryPending = false; return; }
         Write(remaining);
     }
 

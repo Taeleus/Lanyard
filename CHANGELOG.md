@@ -1,5 +1,10 @@
 # Lanyard changelog
 
+## v0.3.6 — 2026-11-01
+
+- Avoid redundant cooldown saves when the stored duration already covers a combat update.
+- Preserve precise clean-exit saves and a single durable expiry record.
+
 ## v0.3.5 — 2026-10-30
 
 - Save cooldown changes and clean session exits without writing during the countdown.

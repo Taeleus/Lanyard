@@ -132,6 +132,11 @@ internal static class Program
     }
     private static void Run(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--covered-cooldown-probe")
+        {
+            CooldownCoveredDurationTests.Probe();
+            return;
+        }
         if (args.Length > 0 && args[0] == "--storage-followup-probe")
         {
             CooldownStorageProbe.Run();
@@ -158,6 +163,7 @@ internal static class Program
         CooldownRoundTripTests.Run(Check);
         CooldownAtomicSaveTests.Run(Check);
         CooldownWriteRecoveryTests.Run(Check);
+        CooldownCoveredDurationTests.Run(Check);
         CombatResumeTests.Run(Check);
         QuietReadinessTests.Run(Check);
         GridOwnershipCacheTests.Run(Check);
