@@ -2,7 +2,7 @@
 
 Lanyard links your tools to one inventory port, helping you build, grind and drill without carrying every material yourself.
 
-**Lanyard v0.3.5** is a Space Engineers 1 client plugin for **Pulsar Legacy**. No server mod is required.
+**Lanyard v0.3.6** is a Space Engineers 1 client plugin for **Pulsar Legacy**. No server mod is required.
 
 ## Start here
 
