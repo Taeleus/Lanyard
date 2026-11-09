@@ -1,5 +1,11 @@
 # Lanyard changelog
 
+## Unreleased
+
+- Support Pulsar Interim (.NET 10) alongside Legacy. `Lanyard.xml` now declares `CLR;CoreCLR`. No code changes were needed: every Harmony target is a large method or a virtual override, so none can be inlined on .NET 10. Pulsar's Interim library ships the same Harmony 2.4.2, and saved cooldowns are stored as `TimeSpan` ticks rather than raw `Stopwatch` ticks.
+- `Deploy-LocalDev.ps1 -Edition Interim` builds and installs the `net10.0` build for Interim, and tags each local `plugin.xml` with its own runtime.
+- User-reported working on Pulsar Interim on November 8, 2026, using a local `net10.0` build. The Vanilla+ integration was not specifically tested.
+
 ## v0.3.6 — 2026-11-01
 
 - Avoid redundant cooldown saves when the stored duration already covers a combat update.
