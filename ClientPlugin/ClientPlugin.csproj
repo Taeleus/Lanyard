@@ -287,18 +287,33 @@
 
       <PluginDirectory Condition="'$(PulsarEdition)' != ''">$(PulsarEditionDir)$(PathSeparator)Local$(PathSeparator)$(AssemblyName)</PluginDirectory>
       <PluginDataFile>$(RepoRoot)$(AssemblyName).xml</PluginDataFile>
+      <LocalPluginDataFile>$(IntermediateOutputPath)plugin.xml</LocalPluginDataFile>
+      <LocalPluginRuntime Condition="'$(TargetFramework)' == 'net48'">CLR</LocalPluginRuntime>
+      <LocalPluginRuntime Condition="'$(TargetFramework)' == 'net10.0'">CoreCLR</LocalPluginRuntime>
     </PropertyGroup>
 
     <Warning Condition="'$(PluginDirectory)' == ''"
              Text="No Pulsar plugin folder for the $(TargetFramework) build under &quot;$(Pulsar)&quot;, skipping its deployment." />
+
+    <!-- Pulsar lets plugin.xml override the runtime inferred from the DLL. -->
+    <Error Condition="'$(PluginDirectory)' != '' And '$(LocalPluginRuntime)' == ''"
+           Text="No Pulsar runtime configured for $(TargetFramework)." />
+    <XmlPeek Condition="'$(PluginDirectory)' != ''" XmlInputPath="$(PluginDataFile)" Query="/PluginData/Runtimes">
+      <Output TaskParameter="Result" ItemName="LocalPluginRuntimeElements" />
+    </XmlPeek>
+    <Error Condition="'$(PluginDirectory)' != '' And '@(LocalPluginRuntimeElements->Count())' != '1'"
+           Text="$(PluginDataFile) must contain exactly one /PluginData/Runtimes element." />
+    <Copy Condition="'$(PluginDirectory)' != ''" SourceFiles="$(PluginDataFile)" DestinationFiles="$(LocalPluginDataFile)" />
+    <XmlPoke Condition="'$(PluginDirectory)' != ''" XmlInputPath="$(LocalPluginDataFile)"
+             Query="/PluginData/Runtimes" Value="$(LocalPluginRuntime)" />
 
     <MakeDir Condition="'$(PluginDirectory)' != ''" Directories="$(PluginDirectory)" />
     <Copy Condition="'$(PluginDirectory)' != ''"
           SourceFiles="$(TargetPath)" DestinationFiles="$(PluginDirectory)$(PathSeparator)plugin.dll" />
     <Copy Condition="'$(PluginDirectory)' != '' And Exists('$(TargetDir)$(TargetName).pdb')"
           SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFiles="$(PluginDirectory)$(PathSeparator)plugin.pdb" />
-    <Copy Condition="'$(PluginDirectory)' != '' And Exists('$(PluginDataFile)')"
-          SourceFiles="$(PluginDataFile)" DestinationFiles="$(PluginDirectory)$(PathSeparator)plugin.xml" />
+    <Copy Condition="'$(PluginDirectory)' != ''"
+          SourceFiles="$(LocalPluginDataFile)" DestinationFiles="$(PluginDirectory)$(PathSeparator)plugin.xml" />
     <Message Condition="'$(PluginDirectory)' != ''" Importance="high"
              Text="Deployed the $(TargetFramework) build to &quot;$(PluginDirectory)&quot;" />
   </Target>

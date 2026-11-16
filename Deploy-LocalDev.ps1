@@ -16,7 +16,18 @@ if ($Bin64) { $arguments += "-p:Bin64=$Bin64" }
 if ($LASTEXITCODE -ne 0) { throw 'Build failed; no deployed files were changed.' }
 $output = Join-Path $repo "ClientPlugin\bin\Release\$framework"
 $dll = Join-Path $output 'Lanyard.dll'
+$pdb = Join-Path $output 'Lanyard.pdb'
 if ([Reflection.AssemblyName]::GetAssemblyName($dll).Name -ne 'Lanyard') { throw 'Unexpected assembly identity.' }
+if (!(Test-Path -LiteralPath $pdb -PathType Leaf)) { throw "Build symbols not found at $pdb." }
+# A local plugin.xml overrides the runtime Pulsar infers from the DLL.
+$manifest = [Xml.XmlDocument]::new()
+$manifest.PreserveWhitespace = $true
+$reader = [Xml.XmlReader]::Create((Join-Path $repo 'Lanyard.xml'))
+try { $manifest.Load($reader) } finally { $reader.Dispose() }
+$runtimeNodes = $manifest.SelectNodes('/PluginData/Runtimes')
+if ($runtimeNodes.Count -ne 1) { throw 'Lanyard.xml must contain exactly one /PluginData/Runtimes element.' }
+$runtimeNodes[0].InnerText = $runtime
+$localManifest = $manifest.OuterXml
 # Resolve the data folder the way Pulsar does: Pulsar/<Edition> if it exists, otherwise Pulsar/Legacy.
 # Do not create Pulsar/Interim here; Interim would switch to that empty folder and lose the user's profile.
 $editionRoot = Join-Path $PulsarRoot $Edition
@@ -37,12 +48,8 @@ foreach ($name in @('plugin.dll','plugin.pdb','plugin.xml')) {
     if (Test-Path -LiteralPath $old -PathType Leaf) { Copy-Item -LiteralPath $old -Destination $backup }
 }
 Copy-Item -LiteralPath $dll -Destination (Join-Path $destination 'plugin.dll') -Force
-Copy-Item -LiteralPath (Join-Path $output 'Lanyard.pdb') -Destination (Join-Path $destination 'plugin.pdb') -Force
-# A local plugin.xml overrides the runtime Pulsar infers from the DLL, so tag this build's runtime only.
-$manifest = [IO.File]::ReadAllText((Join-Path $repo 'Lanyard.xml'))
-if ($manifest -notmatch '<Runtimes>[^<]*</Runtimes>') { throw 'Lanyard.xml has no Runtimes element.' }
-$manifest = [regex]::Replace($manifest, '<Runtimes>[^<]*</Runtimes>', "<Runtimes>$runtime</Runtimes>")
-[IO.File]::WriteAllText((Join-Path $destination 'plugin.xml'), $manifest, [Text.UTF8Encoding]::new($false))
+Copy-Item -LiteralPath $pdb -Destination (Join-Path $destination 'plugin.pdb') -Force
+[IO.File]::WriteAllText((Join-Path $destination 'plugin.xml'), $localManifest, [Text.UTF8Encoding]::new($false))
 if ((Get-FileHash -LiteralPath $dll).Hash -ne (Get-FileHash -LiteralPath (Join-Path $destination 'plugin.dll')).Hash) { throw 'Deployed binary hash does not match the build.' }
 Write-Output "Deployed Lanyard v$([Diagnostics.FileVersionInfo]::GetVersionInfo($dll).ProductVersion) ($Edition, $framework) to $destination"
 Write-Output 'Select Lanyard manually in Pulsar; this script leaves your profile and other plugins alone. Restart after replacing a loaded build.'
