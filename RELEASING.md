@@ -18,11 +18,20 @@ Windows builds target `net48` and `net10.0`. Pulsar Legacy (`Legacy.exe`, runtim
 
 ## Install locally
 
-Run `./Deploy-LocalDev.ps1` to build the Legacy target and install it in `%APPDATA%/Pulsar/Legacy/Local/Lanyard`. Run `./Deploy-LocalDev.ps1 -Edition Interim` to build `net10.0` and install it for Interim. The script backs up previous local files and leaves the active Pulsar profile unchanged.
+Run `./Deploy-LocalDev.ps1` for Legacy or `./Deploy-LocalDev.ps1 -Edition Interim` for Interim. The script builds the selected edition and backs up the previous local files.
 
-Interim uses `%APPDATA%/Pulsar/Interim` only when that folder exists and otherwise shares `%APPDATA%/Pulsar/Legacy`. The script picks the same folder Pulsar will use. Don't create `Pulsar/Interim` just for Lanyard: Interim would switch to that empty folder and stop seeing your existing profile and plugins. The deployed `plugin.xml` is tagged with that build's runtime only, because a local `plugin.xml` overrides the runtime Pulsar infers from the DLL. In a shared folder that tag makes the other edition ignore the build. The folder holds one build at a time, and the script warns when it replaces the other edition's build.
+The script defaults to `%APPDATA%\Pulsar`. Use that default when the launcher runs with `-useHome` or the executable is already in `%APPDATA%\Pulsar`. For a portable launch without `-useHome`, pass the folder containing `Legacy.exe` or `Interim.exe` as `-PulsarRoot`. For example, if the launcher is in `C:\Games\Pulsar`, run the command for your edition.
 
-To deploy automatically during a build, set `Pulsar` to your Pulsar root in `Directory.Build.props.user` and omit `-p:RunPostBuildEvent=Never`. Each target stages a runtime-specific `plugin.xml` alongside its intermediate files. A Windows build deploys `net48` to Legacy and `net10.0` to an existing Interim folder. If only Legacy exists, use `./Deploy-LocalDev.ps1 -Edition Interim` to deliberately replace the shared copy with the Interim build.
+```powershell
+./Deploy-LocalDev.ps1 -Edition Legacy -PulsarRoot 'C:\Games\Pulsar'
+./Deploy-LocalDev.ps1 -Edition Interim -PulsarRoot 'C:\Games\Pulsar'
+```
+
+Legacy installs to `<root>\Legacy\Local\Lanyard`. Interim installs to `<root>\Interim\Local\Lanyard` when `<root>\Interim` exists. Otherwise, Interim uses `<root>\Legacy\Local\Lanyard`. Keep `<root>\Interim` absent when you want Interim to keep using the shared profile. The script follows that fallback without creating an Interim data folder.
+
+Each local `plugin.xml` declares the DLL's runtime because Pulsar uses that tag to override its runtime detection. A shared folder holds one build at a time. The runtime tag makes the other edition ignore the installed build, and the script warns when it replaces a build for the other edition.
+
+To deploy automatically during a build, set `Pulsar` to your Pulsar root in `Directory.Build.props.user` and omit `-p:RunPostBuildEvent=Never`. Each target stages a runtime-specific `plugin.xml` alongside its intermediate files. A Windows build deploys `net48` to Legacy and `net10.0` to an existing Interim folder. If only Legacy exists, run the explicit Interim deployment command for that root to replace the shared copy with the Interim build.
 
 Enable Lanyard manually and restart the game after replacing a loaded build.
 
