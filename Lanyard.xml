@@ -36,5 +36,6 @@
   </SourceDirectories>
   <!-- Reviewed source revision; keep this pin fixed for this release. -->
   <Commit>cdff6e06154f26d2e8a7a3c4537df43e9ea8745b</Commit>
-  <Runtimes>CLR</Runtimes>
+  <!-- CLR = Pulsar Legacy (.NET Framework 4.8), CoreCLR = Pulsar Interim (.NET 10). Pulsar compiles this source for the running edition. -->
+  <Runtimes>CLR;CoreCLR</Runtimes>
 </PluginData>

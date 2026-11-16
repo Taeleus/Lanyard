@@ -12,13 +12,15 @@ From the repository root:
 dotnet build ClientPlugin/ClientPlugin.csproj -c Release -p:RunPostBuildEvent=Never
 ```
 
-Windows builds target `net48` and `net10.0`. Pulsar Legacy uses the `net48` build. If game auto-detection fails, pass `-p:Bin64="<SpaceEngineers installation>/Bin64"`.
+Windows builds target `net48` and `net10.0`. Pulsar Legacy (`Legacy.exe`, runtime `CLR`) uses the `net48` build, and Pulsar Interim (`Interim.exe`, .NET 10, runtime `CoreCLR`) uses the `net10.0` build. `Lanyard.xml` declares `<Runtimes>CLR;CoreCLR</Runtimes>`, so one PluginHub entry serves both: Pulsar compiles the pinned source for the running edition. If game auto-detection fails, pass `-p:Bin64="<SpaceEngineers installation>/Bin64"`.
 
 `ClientPlugin/BuildVersion.cs` is the shared assembly and informational version source. Keep its three-part version consistent with the version documentation. Keep `FriendlyName` in `Lanyard.xml` set to `Lanyard` across releases.
 
 ## Install locally
 
-Run `./Deploy-LocalDev.ps1` to build the Legacy target and install it in `%APPDATA%/Pulsar/Legacy/Local/Lanyard`. The script backs up previous local files and leaves the active Pulsar profile unchanged.
+Run `./Deploy-LocalDev.ps1` to build the Legacy target and install it in `%APPDATA%/Pulsar/Legacy/Local/Lanyard`. Run `./Deploy-LocalDev.ps1 -Edition Interim` to build `net10.0` and install it for Interim. The script backs up previous local files and leaves the active Pulsar profile unchanged.
+
+Interim uses `%APPDATA%/Pulsar/Interim` only when that folder exists and otherwise shares `%APPDATA%/Pulsar/Legacy`. The script picks the same folder Pulsar will use. Don't create `Pulsar/Interim` just for Lanyard: Interim would switch to that empty folder and stop seeing your existing profile and plugins. The deployed `plugin.xml` is tagged with that build's runtime only, because a local `plugin.xml` overrides the runtime Pulsar infers from the DLL. In a shared folder that tag makes the other edition ignore the build. The folder holds one build at a time, and the script warns when it replaces the other edition's build.
 
 Enable Lanyard manually and restart the game after replacing a loaded build.
 
