@@ -123,6 +123,7 @@ namespace Sandbox.Game.Entities.Cube
     {
         public Sandbox.Game.Entities.MyCubeBlock FatBlock;
         public Sandbox.Game.Entities.MyCubeGrid CubeGrid;
+        public Sandbox.Game.Entities.MyComponentStack ComponentStack { get; set; }
         public long OwnerId;
         public float BuildIntegrity = 100;
         public float Integrity = 100;
@@ -194,7 +195,10 @@ namespace Sandbox.Game.Entities
         public void OwnershipChanged() { OnBlockOwnershipChanged?.Invoke(this); }
         public IEnumerable<MyCubeBlock> GetFatBlocks() { return Blocks; }
         public void Damage(float amount) { OnGridBlockDamaged?.Invoke(new MySlimBlock(), amount, null, 0); }
-        public void Damage(MySlimBlock block, float amount) { OnGridBlockDamaged?.Invoke(block, amount, null, 0); }
+        public void Damage(MySlimBlock block, float amount, MyHitInfo? hit = null, long attacker = 0)
+        {
+            OnGridBlockDamaged?.Invoke(block, amount, hit, attacker);
+        }
         public void RemoveSlim() { RemoveSlim(new MySlimBlock { CubeGrid = this }); }
         public void RemoveSlim(MySlimBlock block) { CubeBlocks.Remove(block); if (block.FatBlock != null && block.CubeGrid == this) Blocks.Remove(block.FatBlock); NotifyBlockRemoved(block); }
         public void Add(MyCubeBlock block) { block.CubeGrid = this; block.SlimBlock = new MySlimBlock { CubeGrid = this, FatBlock = block }; CubeBlocks.Add(block.SlimBlock); Blocks.Add(block); OnFatBlockAdded?.Invoke(block); }

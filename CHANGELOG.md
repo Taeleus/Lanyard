@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fix a combat cooldown that could start or restart when finishing a weld or running out of the next component.
 - Support Pulsar Interim (.NET 10) alongside Legacy. `Lanyard.xml` now declares `CLR;CoreCLR`.
 - `Deploy-LocalDev.ps1 -Edition Interim` builds and installs the `net10.0` build for Interim, and tags each local `plugin.xml` with its own runtime.
 - On November 8, 2026, the contributor reported Lanyard working in game on Pulsar Interim with a local `net10.0` build. Vanilla+ coverage remains unverified.

@@ -20,7 +20,7 @@ internal class Tool : MyCubeBlock, IMyGunObject<MyDeviceBase>
     public bool IsShooting { get; set; } = true;
     public MyDeviceBase GunBase { get; } = new MyDeviceBase();
 }
-internal static class Program
+internal static partial class Program
 {
     private static int assertions;
     private static void Check(bool pass, string message)
@@ -171,6 +171,7 @@ internal static class Program
         TestBoundsAccess();
         OwnGrindingPatches.Initialize();
         FriendlyGrindingTests.Run(Check);
+        WeldingDamageTests();
         var timer = new CombatCooldown(120);
         Check(!timer.IsBlocked(0), "fresh timer");
         timer.Observe(100);

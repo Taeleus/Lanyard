@@ -684,10 +684,10 @@ internal static class CombatLockout
         }
         private void Damaged(IMySlimBlock block, float amount, MyHitInfo? hit, long attacker)
         {
-            // Replicated integrity losses use a negative delta; direct damage
-            // uses a positive amount. Neither supplies an enemy proximity signal.
             var slim = block as MySlimBlock;
-            if (amount == 0 || (amount < 0 && OwnGrindingPatches.AppliesTo(slim))) return;
+            if (amount == 0) return;
+            if (amount < 0 && (OwnGrindingPatches.AppliesTo(slim) ||
+                WeldIntegrityPatches.ConsumeCorrection(slim, amount, hit, attacker))) return;
             if (slim != null) OwnDismantled.Remove(slim);
             RecordDamage(slim?.FatBlock, amount < 0
                 ? ConnectorDamageSource.ReplicatedIntegrity : ConnectorDamageSource.NativeDamage, amount);
