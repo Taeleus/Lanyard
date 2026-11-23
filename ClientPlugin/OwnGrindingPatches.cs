@@ -19,7 +19,11 @@ internal static class OwnGrindingPatches
     {
         if (harmony != null) return;
         harmony = new Harmony(HarmonyId);
-        try { harmony.PatchAll(typeof(OwnGrindingPatches).Assembly); }
+        try
+        {
+            harmony.PatchAll(typeof(OwnGrindingPatches).Assembly);
+            WeldIntegrityPatches.TryApply(harmony);
+        }
         catch { Dispose(); throw; }
     }
 

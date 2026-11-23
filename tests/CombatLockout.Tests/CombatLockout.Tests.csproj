@@ -14,6 +14,7 @@
     <Compile Include="../../ClientPlugin/CombatCooldown.cs" Link="CombatCooldown.cs" />
     <Compile Include="../../ClientPlugin/CombatLockout.cs" Link="CombatLockout.cs" />
     <Compile Include="../../ClientPlugin/OwnGrindingPatches.cs" Link="OwnGrindingPatches.cs" />
+    <Compile Include="../../ClientPlugin/WeldIntegrityPatches.cs" Link="WeldIntegrityPatches.cs" />
     <Compile Include="../../ClientPlugin/CombatCooldownStore.cs" Link="CombatCooldownStore.cs" />
     <Compile Include="../../ClientPlugin/CombatResumeState.cs" Link="CombatResumeState.cs" />
     <Compile Include="../../ClientPlugin/WeaponCoreMonitor.cs" Link="WeaponCoreMonitor.cs" />
