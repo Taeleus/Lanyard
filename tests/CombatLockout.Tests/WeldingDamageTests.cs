@@ -15,10 +15,13 @@ internal static partial class Program
     }
 
     private static MySlimBlock WeldBlock(MyCubeGrid grid, float maxIntegrity, Action<MySlimBlock> beforeCorrection = null)
+        => WeldBlock(grid, new MyComponentStack(maxIntegrity), beforeCorrection);
+
+    private static MySlimBlock WeldBlock(MyCubeGrid grid, MyComponentStack stack, Action<MySlimBlock> beforeCorrection = null)
     {
-        var block = new MySlimBlock { CubeGrid = grid, ComponentStack = new MyComponentStack(maxIntegrity) };
+        var block = new MySlimBlock { CubeGrid = grid, ComponentStack = stack };
         // As in MySlimBlock.OnIntegrityChanged, only decreases raise grid damage.
-        block.ComponentStack.IntegrityChanged += (stack, previous, current) =>
+        stack.IntegrityChanged += (_, previous, current) =>
         {
             if (previous <= current) return;
             beforeCorrection?.Invoke(block);
@@ -51,18 +54,84 @@ internal static partial class Program
             Check(CombatLockout.IsBlocked, "welding: identical damage to the block after welding still blocks");
         }
 
-        foreach (var hitAmount in new[] { 5f, -0.01f, missingPlateDelta })
+        WeldDamageControls((grid, callback) => WeldBlock(grid, 100f, callback), completionDelta);
+        var active = LinkedWeldGrid();
+        active.Damage(5f);
+        var originalDeadline = Deadline();
+        WeldBlock(active, 100f).ComponentStack.IncreaseMountLevel(25f);
+        WeldBlock(active, 2500f).ComponentStack.IncreaseMountLevel(25f, new MyConstructionStockpile());
+        Check(CombatLockout.IsBlocked && Deadline() == originalDeadline, "welding: repeated corrections preserve an existing deadline");
+
+        MediumCargoContainerWeldTests();
+    }
+
+    // SmallBlockMediumContainer in vanilla CubeBlocks_Logistics.sbc starts with
+    // 20 Interior Plates (15 integrity each) and ends with 10 more. Components.sbc
+    // gives a total of 30*15 + 10*30 + 4*1 + 4*40 + 1*5 = 919 integrity.
+    private const float MediumCargoMax = 919f;
+    private const float MediumCargoShortageDelta = -1.6763806E-08f;
+
+    private static MySlimBlock MediumCargoAtFirstPlate(MyCubeGrid grid, Action<MySlimBlock> beforeCorrection = null)
+        => WeldBlock(grid, new MyComponentStack(MediumCargoMax, initialIntegrity: 15f,
+            componentEnd: 15f, nextComponent: "InteriorPlate"), beforeCorrection);
+
+    private static void MediumCargoContainerWeldTests()
+    {
+        var grid = LinkedWeldGrid();
+        var cargo = MediumCargoAtFirstPlate(grid);
+        var empty = new MyConstructionStockpile();
+        var events = 0;
+        float delta = 0;
+        float peakIntegrity = 0;
+        cargo.ComponentStack.IntegrityChanged += (stack, previous, current) =>
+        {
+            if (current > previous) peakIntegrity = stack.Integrity;
+        };
+        grid.OnGridBlockDamaged += (block, amount, hit, attacker) =>
+        {
+            if (block != cargo) return;
+            Check(!hit.HasValue && attacker == 0, "cargo: welding sends an anonymous integrity event");
+            events++;
+            delta = amount;
+        };
+        for (int i = 0; i < 10; i++)
+        {
+            cargo.ComponentStack.IncreaseMountLevel(25f, empty);
+            Check(events == i + 1 && delta == MediumCargoShortageDelta &&
+                empty.RequestedComponent == "InteriorPlate" && peakIntegrity == 15.0000152587890625f &&
+                cargo.ComponentStack.Integrity == 15f,
+                "cargo: each retry reaches the same missing plate and reports the issue #2 delta");
+            Check(!CombatLockout.IsBlocked, "cargo: missing Interior Plate does not start the cooldown");
+        }
+        // Complete the final mounted plate on the same vanilla definition.
+        var lastPlate = WeldBlock(grid, new MyComponentStack(MediumCargoMax, initialIntegrity: 918f, componentEnd: MediumCargoMax));
+        lastPlate.ComponentStack.IncreaseMountLevel(25f, empty);
+        Check(lastPlate.ComponentStack.Integrity == MediumCargoMax && !CombatLockout.IsBlocked,
+            "cargo: finishing the container preserves availability");
+        grid.Damage(cargo, MediumCargoShortageDelta);
+        Check(CombatLockout.IsBlocked && CombatLockout.RemainingSeconds == 120,
+            "cargo: identical anonymous damage outside welding starts the full cooldown");
+        var deadline = Deadline();
+        cargo.ComponentStack.IncreaseMountLevel(25f, empty);
+        Check(Deadline() == deadline, "cargo: welding preserves an existing cooldown deadline");
+
+        WeldDamageControls(MediumCargoAtFirstPlate, MediumCargoShortageDelta);
+    }
+
+    private static void WeldDamageControls(Func<MyCubeGrid, Action<MySlimBlock>, MySlimBlock> createBlock, float correctionDelta)
+    {
+        foreach (var hitAmount in new[] { 5f, -0.01f, -7.4505806E-09f })
         foreach (var otherTarget in new[] { false, true })
         {
             var grid = LinkedWeldGrid();
             var neighbor = WeldBlock(grid, 100f);
             var hitObserved = false;
-            var block = WeldBlock(grid, 100f, welding =>
+            var block = createBlock(grid, welding =>
             {
                 grid.Damage(otherTarget ? neighbor : welding, hitAmount);
                 hitObserved = CombatLockout.IsBlocked && CombatLockout.RemainingSeconds == 120;
             });
-            block.ComponentStack.IncreaseMountLevel(25f);
+            block.ComponentStack.IncreaseMountLevel(25f, new MyConstructionStockpile());
             Check(hitObserved && CombatLockout.IsBlocked,
                 $"welding: damage {hitAmount} during the correction starts a full cooldown (other target: {otherTarget})");
         }
@@ -74,35 +143,28 @@ internal static partial class Program
         {
             var grid = LinkedWeldGrid();
             var neighbor = WeldBlock(grid, 100f);
-            var block = WeldBlock(grid, 100f, welding =>
+            var block = createBlock(grid, welding =>
             {
-                grid.Damage(source.otherBlock ? neighbor : welding, completionDelta, source.hit, source.attacker);
+                grid.Damage(source.otherBlock ? neighbor : welding, correctionDelta, source.hit, source.attacker);
                 Check(CombatLockout.IsBlocked, "welding: an equally small hit with a different target or attribution counts immediately");
             });
-            block.ComponentStack.IncreaseMountLevel(25f);
+            block.ComponentStack.IncreaseMountLevel(25f, new MyConstructionStockpile());
         }
 
         var duplicate = LinkedWeldGrid();
-        var sameBlock = WeldBlock(duplicate, 100f, welding => duplicate.Damage(welding, completionDelta));
-        sameBlock.ComponentStack.IncreaseMountLevel(25f);
+        var sameBlock = createBlock(duplicate, welding => duplicate.Damage(welding, correctionDelta));
+        sameBlock.ComponentStack.IncreaseMountLevel(25f, new MyConstructionStockpile());
         Check(CombatLockout.IsBlocked && CombatLockout.RemainingSeconds == 120,
             "welding: two identical anonymous events on the same block can consume only one correction");
 
-        var active = LinkedWeldGrid();
-        active.Damage(5f);
-        var originalDeadline = Deadline();
-        WeldBlock(active, 100f).ComponentStack.IncreaseMountLevel(25f);
-        WeldBlock(active, 2500f).ComponentStack.IncreaseMountLevel(25f, new MyConstructionStockpile());
-        Check(CombatLockout.IsBlocked && Deadline() == originalDeadline, "welding: repeated corrections preserve an existing deadline");
-
         var failed = LinkedWeldGrid();
         var failure = new InvalidOperationException("Simulated construction callback failure");
-        var interrupted = WeldBlock(failed, 100f, block => throw failure);
+        var interrupted = createBlock(failed, block => throw failure);
         Exception observed = null;
-        try { interrupted.ComponentStack.IncreaseMountLevel(25f); }
+        try { interrupted.ComponentStack.IncreaseMountLevel(25f, new MyConstructionStockpile()); }
         catch (Exception ex) { observed = ex; }
         Check(ReferenceEquals(observed, failure), "welding: vanilla callback exceptions propagate");
-        failed.Damage(interrupted, completionDelta);
+        failed.Damage(interrupted, correctionDelta);
         Check(CombatLockout.IsBlocked, "welding: an interrupted correction leaves no damage exemption");
     }
 }

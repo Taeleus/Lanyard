@@ -5,15 +5,31 @@ namespace Sandbox.Game.Entities
 {
     public class MyConstructionStockpile
     {
-        public bool HasNextPlate;
+        public string RequestedComponent { get; private set; }
+
+        public bool RemoveItem(string subtype)
+        {
+            RequestedComponent = subtype;
+            return false; // The construction stockpile in these fixtures is empty.
+        }
     }
 
-    // The first steel plate has 100 integrity. Keep the four setter call sites
-    // from the native mount routine so the production Harmony transpiler runs.
+    // Model one mounted component. Keep the four native setter call sites so
+    // the production Harmony transpiler runs against the real float operations.
     public class MyComponentStack
     {
-        private float integrity = 75f;
-        public MyComponentStack(float maxIntegrity) { MaxIntegrity = maxIntegrity; }
+        private readonly float componentEnd;
+        private readonly string nextComponent;
+        private float integrity;
+
+        public MyComponentStack(float maxIntegrity, float initialIntegrity = 75f,
+            float componentEnd = 100f, string nextComponent = "SteelPlate")
+        {
+            MaxIntegrity = maxIntegrity;
+            integrity = initialIntegrity;
+            this.componentEnd = componentEnd;
+            this.nextComponent = nextComponent;
+        }
 
         public float MaxIntegrity { get; }
         public float IntegrityRatio => Integrity / MaxIntegrity;
@@ -37,16 +53,16 @@ namespace Sandbox.Game.Entities
         private void IncreaseMountLevelInternal(float mountAmount, MyConstructionStockpile stockpile)
         {
             const float componentBoundary = 1.5259022E-05f;
-            var remaining = 100f - Integrity;
+            var remaining = componentEnd - Integrity;
             if (mountAmount < remaining)
             {
                 Integrity += mountAmount;
                 return;
             }
             Integrity += remaining + componentBoundary;
-            if (MaxIntegrity == 100f)
+            if (MaxIntegrity == componentEnd)
                 Integrity = MaxIntegrity;
-            else if (stockpile != null && !stockpile.HasNextPlate)
+            else if (stockpile != null && !stockpile.RemoveItem(nextComponent))
                 Integrity -= componentBoundary;
         }
     }

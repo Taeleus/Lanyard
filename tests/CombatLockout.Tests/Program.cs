@@ -172,6 +172,7 @@ internal static partial class Program
         OwnGrindingPatches.Initialize();
         FriendlyGrindingTests.Run(Check);
         WeldingDamageTests();
+        UnsupportedWeldLayoutTest();
         var timer = new CombatCooldown(120);
         Check(!timer.IsBlocked(0), "fresh timer");
         timer.Observe(100);
