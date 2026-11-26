@@ -1,16 +1,18 @@
 # Lanyard changelog
 
-## Unreleased
+## v0.3.7 — 2026-11-26
 
 - Fix a combat cooldown that could start or restart when finishing a weld or running out of the next component.
-- Support Pulsar Interim (.NET 10) alongside Legacy. `Lanyard.xml` now declares `CLR;CoreCLR`.
-- `Deploy-LocalDev.ps1 -Edition Interim` builds and installs the `net10.0` build for Interim, and tags each local `plugin.xml` with its own runtime.
-- On November 8, 2026, the contributor reported Lanyard working in game on Pulsar Interim with a local `net10.0` build. Vanilla+ coverage remains unverified.
+
+## Unreleased
 
 ## v0.3.6 — 2026-11-01
 
 - Avoid redundant cooldown saves when the stored duration already covers a combat update.
 - Preserve precise clean-exit saves and a single durable expiry record.
+- Support Pulsar Interim (.NET 10) alongside Legacy. `Lanyard.xml` now declares `CLR;CoreCLR`.
+- `Deploy-LocalDev.ps1 -Edition Interim` builds and installs the `net10.0` build for Interim, and tags each local `plugin.xml` with its own runtime.
+- On November 8, 2026, the contributor reported Lanyard working in game on Pulsar Interim with a local `net10.0` build. Vanilla+ coverage remains unverified.
 
 ## v0.3.5 — 2026-10-30
 
